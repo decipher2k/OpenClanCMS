@@ -1,3 +1,15 @@
+OpenClanCMS is a fork of clansphere. Sadly it seems to be impossible to contact the devs, and the project seems to be abandoned.
+
+Changelog:
+-Fixed several dozen security flaws
+  -SQL prepared statements
+  -CSRF tokens
+  -Password hashing
+  -[...]
+-Migrated to PHP 8.x
+
+The patch against clansphere can be found at complete-security-audit.patch
+
   _____ _              _____       _                   
  / ____| |            / ____|     | |                  
 | |    | | __ _ _ __ | (___  _ __ | |__   ___ _ __ ___ 
