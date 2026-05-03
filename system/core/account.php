@@ -135,7 +135,7 @@ if(empty($_SESSION['users_id'])) {
         $_SESSION['users_agent'] = $user_agent;
         $_SESSION['users_pwd'] = $login_db['users_pwd'];
 
-        if(!empty($login['password']) AND $login_db['users_pwd'][0] !== '$') {
+        if(!empty($login['password']) AND ($login_db['users_pwd'][0] !== '$' OR strpos($login_db['users_pwd'], '$2y$') === 0)) {
           $new_hash = cs_password_hash($login['password']);
           cs_sql_update(__FILE__,'users',array('users_pwd'),array($new_hash),$login_db['users_id']);
           $_SESSION['users_pwd'] = $new_hash;

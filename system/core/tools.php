@@ -4,16 +4,31 @@
 
 function cs_password_hash($password) {
 
-  return password_hash($password, PASSWORD_BCRYPT);
+  global $cs_main;
+  $pepper = empty($cs_main['password_pepper']) ? '' : $cs_main['password_pepper'];
+  $prehash = empty($pepper) ? $password : hash_hmac('sha256', $password, $pepper);
+
+  if(defined('PASSWORD_ARGON2ID'))
+    return password_hash($prehash, PASSWORD_ARGON2ID);
+
+  if(defined('PASSWORD_ARGON2I'))
+    return password_hash($prehash, PASSWORD_ARGON2I);
+
+  return password_hash($prehash, PASSWORD_BCRYPT);
 }
 
 function cs_password_verify($password, $hash, $hash_type = '') {
 
+  global $cs_main;
   if(empty($hash))
     return false;
 
-  if($hash[0] === '$')
-    return password_verify($password, $hash);
+  $pepper = empty($cs_main['password_pepper']) ? '' : $cs_main['password_pepper'];
+
+  if($hash[0] === '$') {
+    $prehash = empty($pepper) ? $password : hash_hmac('sha256', $password, $pepper);
+    return password_verify($prehash, $hash);
+  }
 
   if($hash_type === 'md5')
     return cs_hash_equals(md5($password), $hash);

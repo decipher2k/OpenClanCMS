@@ -67,6 +67,7 @@ if(empty($setup_exists) AND (isset($_POST['create']) OR isset($_POST['view']))) 
     $setup_php .= "\$cs_db['prefix'] = " . var_export($cs_db['prefix'], true) . ";\n\n";
     $setup_php .= "\$cs_logs['save_actions'] = " . (int) $log['save_actions'] . ";\n";
     $setup_php .= "\$cs_logs['save_errors'] = " . (int) $log['save_errors'] . ";\n\n";
+    $setup_php .= "\$cs_main['password_pepper'] = " . var_export(cs_random_string(64), true) . ";\n";
     $setup_php .= "\$cs_main['charset'] = " . var_export($cs_main['charset'], true) . ";";
 
     if(isset($_POST['create'])) {
