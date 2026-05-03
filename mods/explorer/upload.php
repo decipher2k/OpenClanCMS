@@ -1,0 +1,87 @@
+<?php
+// ClanSphere 2010 - www.clansphere.net
+// $Id$
+
+$cs_lang = cs_translate('explorer');
+
+include_once 'mods/explorer/functions.php';
+
+$target = empty($_REQUEST['dir']) ? '' : $_REQUEST['dir'];
+$dir = cs_explorer_path($target, 'raw');
+$lsd = cs_explorer_path($dir, 'escape');
+
+$files_gl = cs_files();
+
+$data = array();
+
+if (empty($_POST['submit'])) {
+  
+  $post_max_size = str_replace('M',' Mb', ini_get('post_max_size'));
+  $data['lang']['max_upload'] = sprintf($cs_lang['max_upload'], $post_max_size);
+
+  #$data['if']['modsdir'] = substr($dir,0,5) == 'mods/' && strpos(substr($dir,5),'/') == strrpos(substr($dir,5),'/') && empty($_POST['accessadd']) ? true : false;
+  $data['if']['modsdir'] = false;
+  $data['var']['dir'] = $dir;
+  $data['var']['name'] = empty($_POST['name']) ? '' : str_replace('..','',$_POST['name']);
+  $data['icn']['dir'] = cs_html_img('symbols/files/filetypes/dir.gif',16,16);
+
+  #$data['if']['accessentry'] = isset($_POST['accessadd']) && file_exists($dir . '/access.php') ? true : false;
+  $data['if']['accessentry'] = false;
+
+  $clip = array(1 => $cs_lang['infobox'], 2 => nl2br($cs_lang['possible']));
+  $data['clip']['info'] = cs_abcode_clip($clip);
+
+  echo cs_subtemplate(__FILE__, $data, 'explorer', 'upload');
+
+}
+else {
+
+  $filename = $dir . '/';
+  $extension = strtolower(substr(strrchr($files_gl['file']['name'],'.'),1));
+  $extension = preg_match("=^[a-z0-9]{1,8}$=i", $extension) ? $extension : '';
+
+  if (empty($_POST['name'])) {
+    $safe_name = cs_safe_filename($files_gl['file']['name']);
+    if($safe_name === false)
+      die(cs_error_internal(0, 'Invalid file name'));
+    $filename .= $safe_name;
+    $action = substr($files_gl['file']['name'],0,strlen($files_gl['file']['name']) - strlen($extension) - 1);
+  } else {
+    $safe_name = cs_safe_filename($_POST['name']);
+    if($safe_name === false OR empty($extension))
+      die(cs_error_internal(0, 'Invalid file name'));
+    $filename .= $safe_name;
+    $filename .= '.' . $extension;
+    $action = $_POST['name'];
+  }
+  $target_file = cs_safe_path($cs_main['def_path'], $filename, 0);
+  if($target_file === false)
+    die(cs_error_internal(0, 'Invalid target path'));
+  
+  $denied_exts = array('php' => 1, 'php3' => 1, 'php4' => 1, 'php5' => 1, 'php7' => 1,
+                       'phtml' => 1, 'phar' => 1, 'inc' => 1, 'htaccess' => 1, 'config' => 1,
+                       'pht' => 1, 'shtml' => 1, 'cgi' => 1, 'pl' => 1);
+  if(isset($denied_exts[$extension]))
+    die(cs_error_internal(0, 'File type not allowed'));
+  
+  $message = move_uploaded_file($files_gl['file']['tmp_name'],$target_file) ? $cs_lang['success'] : $cs_lang['error_upload'];
+  
+  cs_redirect($message,'explorer','roots','dir='.$lsd);
+
+  /*
+  if (isset($_POST['minaxx'])) {
+    $array = file($dir.'/access.php');
+    $string = '';
+    $count_array = count($array);
+    
+    for ($run = 0; $run < $count_array; $run++) {
+      if ($run == 4)
+        $string .= '$axx_file[\''.$action.'\'] = '.$_POST['minaxx'].";\n\r";
+      $string .= $array[$run];
+    }
+    
+    $accessfile = fopen($dir.'/access.php','w');
+    fwrite($accessfile, $string);
+    fclose($accessfile);
+  }*/
+}

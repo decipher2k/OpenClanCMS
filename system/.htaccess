@@ -1,0 +1,5 @@
+## Disallow direct access to PHP files inside system directory
+<FilesMatch "\.php$">
+  Order deny,allow
+  Deny from all
+</FilesMatch>

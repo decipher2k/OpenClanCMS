@@ -1,0 +1,4749 @@
+diff --git a/audit.md b/audit.md
+new file mode 100644
+index 0000000..4e2223f
+--- /dev/null
++++ b/audit.md
+@@ -0,0 +1,629 @@
++# Security Audit Report
++
++Datum: 2026-05-03
++
++Scope: Vollstaendige statische Sicherheitspruefung der ClanSphere 2011.4.4-r2 Codebase in diesem Workspace. Geprueft wurden Authentifizierung, Session-Handling, CSRF, Token-Generierung, SQL-Konstruktion, Includes, Uploads, Dateioperationen, Redirects/Header, Installer, Template-/HTML-Ausgabe, AJAX/JavaScript und Webserver-Upload-Schutz.
++
++## Zusammenfassung
++
++Die Codebase enthielt mehrere kritische und hohe Risiken, wie sie bei aelteren PHP-CMS-Versionen typisch sind: serverseitiges `eval()`, vorhersagbare Tokens, schwache Session-Rotation, unsichere Upload-/Dateipfade, unzureichende Ausgabe-Escapes, clientseitiges `eval()`, SQL-Injection in einzelnen Admin-Flows, offene/unsaubere Redirects und zu breite Dateiberechtigungen.
++
++Die gefundenen sicherheitsrelevanten Schwachstellen wurden direkt in der Codebase repariert. In weiteren Vertiefungspaessen wurden zusaetzlich GET-basierte Zustandsaenderungen, Cache-Deserialisierung, direkte Bild-/AJAX-Endpunkte und verbleibende Request-ID-Hotspots gehaertet. Da dieses Verzeichnis kein Git-Repository ist, wurde zusaetzlich eine Linux-`patch`-kompatible Datei erzeugt: `security-audit-fixes.patch`.
++
++## Behobene Findings
++
++### Kritisch: Serverseitige Code-Ausfuehrung durch ABCode/static content
++
++Betroffene Dateien:
++
++- `system/core/abcode.php`
++- `mods/static/options.php`
++
++Finding:
++
++Statische Inhalte konnten ueber PHP-ABCode serverseitig ausgefuehrt werden. Ein kompromittierter Admin-Account oder ein Admin mit Schreibrechten auf statische Inhalte konnte dadurch PHP-Code auf dem Server ausfuehren.
++
++Fix:
++
++- `cs_abcode_eval()` fuehrt keinen Code mehr aus.
++- Die Static-Option `php_eval` wird dauerhaft deaktiviert gespeichert.
++
++### Kritisch: Installer-/Setup-Injection
++
++Betroffene Dateien:
++
++- `install.php`
++- `mods/install/settings.php`
++
++Finding:
++
++Der Installer konnte nach abgeschlossener Installation in bestimmten Zustaenden erreichbar bleiben. Zusaetzlich wurden Setup-Werte direkt in PHP-Code interpoliert.
++
++Fix:
++
++- `install.php` blockiert nach abgeschlossener Installation.
++- Generierte Setup-Werte werden mit `var_export()` und Integer-Casts geschrieben.
++
++### Hoch: Vorhersagbare Auth-, Reset-, CSRF- und Upload-Tokens
++
++Betroffene Dateien:
++
++- `system/core/tools.php`
++- `system/core/account.php`
++- `system/core/templates.php`
++- `mods/users/functions.php`
++- `mods/users/sendpw.php`
++- `mods/users/activate.php`
++- `mods/users/remove.php`
++- `mods/captcha/generate.php`
++- `mods/board/com_create.php`
++- `mods/board/com_edit.php`
++- `mods/board/thread_add.php`
++- `mods/board/thread_edit.php`
++- `mods/gallery/manage_advanced.php`
++
++Finding:
++
++Sicherheitsrelevante Werte nutzten `rand()`, `mt_rand()`, `md5(microtime())` oder Teile alter Passwort-Hashes. Das betraf Login-Cookies, CSRF-Keys, Captchas, Passwort-Reset, Upload-Namen und Anonymisierungswerte.
++
++Fix:
++
++- `cs_random_string()` eingefuehrt.
++- `cs_hash_equals()` fuer timing-sichere Vergleiche eingefuehrt.
++- Login-Cookie-Hashes, CSRF-Keys, Captchas, Reset-Tokens, Upload-Namen und Anonymisierungswerte auf kryptographisch staerkere Zufallswerte umgestellt.
++- Passwort-Reset nutzt `users_regkey` als echten Einmal-Token und loescht ihn nach erfolgreicher Nutzung.
++- Account-Aktivierung loescht `users_regkey` nach Aktivierung.
++
++### Hoch: Session Fixation und Cookie-Flags
++
++Betroffene Dateien:
++
++- `system/core/account.php`
++- `system/core/functions.php`
++
++Finding:
++
++Die Session-Rotation nutzte `session_regenerate_id(session_id())` und rotierte dadurch nicht korrekt. Auth-Cookies fehlten moderne Flags.
++
++Fix:
++
++- Login-Rotation auf `session_regenerate_id(true)` geaendert.
++- Auth-Cookies erhalten, wo von PHP unterstuetzt, `HttpOnly`.
++- Bei HTTPS wird `Secure` gesetzt.
++- Sprach-Cookie entsprechend gehaertet.
++
++### Hoch: GET-basierte CSRF bei Zustandsaenderungen
++
++Betroffene Dateien:
++
++- `system/core/tools.php`
++- `system/core/account.php`
++- `system/core/templates.php`
++- `mods/board/reportdone.php`
++- `mods/board/sort.php`
++- `mods/messages/archiv.php`
++- `mods/logs/roots.php`
++- `mods/wars/rounds.php`
++
++Finding:
++
++Die vorhandene XSRF-Schutzschicht pruefte POST-Formulare, aber mehrere Alt-Aktionen aenderten Zustand per GET, z. B. Aktivieren/Deaktivieren, Loeschen, Sortieren, Cache-Clear, Abo-Toggles oder Wizard-Status. Diese Links waren dadurch fuer Cross-Site-Request-Forgery anfaellig.
++
++Fix:
++
++- Zentrale GET-XSRF-Erkennung fuer bekannte zustandsaendernde Parameter eingefuehrt.
++- `cs_url()` haengt fuer solche GET-Aktionen automatisch einen Session-Token an.
++- `account.php` blockiert tokenlose GET-Zustandsaenderungen.
++- Board-Sortierung als aktionsspezifischer Sonderfall abgedeckt.
++- Board-Report-Abschluss (`reportdone&id=...`) und Nachrichten-Archivierung (`messages/archiv&id=...`) als ID-only GET-Zustandsaenderungen abgedeckt.
++- Wars-Runden-Reorder (`up`/`down`) als aktionsspezifischer Sonderfall abgedeckt; generische `up`/`down`-Parameter wurden bewusst nicht global blockiert, damit reine Download-/Anzeige-Endpunkte nicht regressieren.
++- `del` wurde als zustandsaendernder GET-Parameter aufgenommen, damit Log-Loeschaktionen nicht tokenlos ausloesbar sind.
++- XSRF-Token-Liste begrenzt, damit Sessions nicht unbegrenzt wachsen.
++
++### Hoch: Path Traversal und unsichere Dateioperationen
++
++Betroffene Dateien:
++
++- `system/core/tools.php`
++- `mods/explorer/functions.php`
++- `mods/explorer/upload.php`
++- `mods/explorer/view.php`
++- `mods/explorer/edit.php`
++- `mods/explorer/remove.php`
++- `mods/explorer/create.php`
++- `mods/explorer/create_dir.php`
++- `mods/explorer/chmod.php`
++- `mods/explorer/roots.php`
++- `mods/logs/roots.php`
++- `mods/pictures/functions.php`
++- `mods/banners/remove.php`
++- `mods/banners/edit.php`
++
++Finding:
++
++Mehrere Pfade wurden mit einfachen String-Ersetzungen wie `str_replace('..', '')` behandelt. Das ist kein robuster Schutz gegen Traversal und unsichere Delete/Edit/Upload-Pfade.
++
++Fix:
++
++- `cs_safe_filename()` und `cs_safe_path()` eingefuehrt.
++- `cs_upload()` und `cs_unlink()` zentral gehaertet.
++- Explorer-View/Edit/Delete/Chmod/Create/Upload auf kanonische Pfadpruefung umgestellt.
++- Log-Downloads und -Deletes auf sichere `.log`-Dateinamen beschraenkt.
++- Unsichere Banner-/Picture-Unlinks korrigiert.
++- Explorer-`chmod` akzeptiert nur noch 1 bis 3 Oktalziffern und verhindert Sonderbits wie setuid/sticky.
++
++### Hoch: Board-Attachment Access Bypass
++
++Betroffene Datei:
++
++- `mods/board/attachment.php`
++
++Finding:
++
++Direkter Zugriff ueber Dateiname konnte die staerkeren Board-/Thread-Berechtigungspruefungen umgehen.
++
++Fix:
++
++- Direkte Dateinamen-Lookups deaktiviert.
++- Attachment-Pfade werden sicher aufgeloest.
++- Response-Filename und Content-Type werden bereinigt.
++
++### Hoch: Gallery Path Traversal, Access Bypass und Ressourcenmissbrauch
++
++Betroffene Dateien:
++
++- `mods/gallery/com_view.php`
++- `mods/gallery/image.php`
++- `mods/gallery/download.php`
++
++Finding:
++
++Gallery-Endpunkte akzeptierten request-kontrollierte Dateinamen und unbeschraenkte Groessen-/Rotationsparameter. Direkte Bildendpunkte konnten ausserdem `gallery_status`, Folder-Access, `usersgallery`-Freigaben oder Board-Passwort-/Squad-Regeln umgehen, wenn der Dateiname bzw. die Bild-ID bekannt war.
++
++Fix:
++
++- Sichere Dateinamen- und Canonical-Path-Pruefungen.
++- ZIP-Downloads auf Dateien innerhalb `uploads/gallery/pics` beschraenkt.
++- Groessen- und Rotationsparameter begrenzt.
++- Direkte `pic`-/`thumb`-Ausgabe prueft nun Bildstatus, Bild-Access und Gallery-Folder-Access.
++- Direkte `userspic`-/`usersthumb`-Ausgabe prueft nun `usersgallery_status`, Bild-Access, Folder-Access sowie Owner-/Admin-Ausnahmen.
++- Direkte `boardpic`-Ausgabe uebernimmt die Board-Datei-Zugriffslogik inklusive Board-Access, Squad-Mitgliedschaft und Board-Passwort.
++- `picname`-Previews sind auf Gallery-Manager beschraenkt.
++- Gallery-Detailansicht verweigert Bilder aus nicht zugreifbaren Ordnern.
++- Download-Zaehler fuer `usersgallery`-Downloads aktualisieren nicht mehr versehentlich die normale `gallery`-Tabelle.
++
++### Hoch: Access-Control- und Bulk-Delete-Bypasses
++
++Betroffene Dateien:
++
++- `mods/buddys/center.php`
++- `mods/computers/picture.php`
++- `mods/events/picture.php`
++- `mods/files/picture.php`
++- `mods/messages/archiv.php`
++- `mods/messages/multiremove.php`
++- `mods/news/picture.php`
++- `mods/shoutbox/multiremove.php`
++- `mods/wars/picture.php`
++
++Finding:
++
++Einige Aktionen prueften Besitz- oder Auswahlgrenzen zu spaet oder gar nicht. Private Buddy-Notizen waren ueber die Notiz-ID abrufbar, Computerbilder konnten per GET-Index ohne Owner-Pruefung geloescht werden, und Bulk-Loeschungen bauten SQL-Queries aus unnormalisierten ID-Listen. Nachrichten-Bulk-Delete entfernte Inbox-Nachrichten vollstaendig, obwohl sie fuer den Sender noch sichtbar oder archiviert sein konnten.
++
++Fix:
++
++- Buddy-Notizen werden nur noch fuer den Besitzer der Buddy-Beziehung geladen.
++- Computerbild-Delete prueft Owner/Admin-Rechte vor dem Loeschen.
++- Bildverwaltungen fuer Events, Files, News und Wars pruefen Zielobjekt und Bildindex vor Datei- und DB-Aenderungen.
++- Message-Bulk-Delete blendet Nachrichten pro Teilnehmerseite aus und entfernt Datensaetze erst, wenn Sender- und Empfaengerseite nicht mehr sichtbar/archiviert sind.
++- Message-Archivierung prueft die Eigentuemerschaft bereits in der Select-Query.
++- Message- und Shoutbox-Bulk-IDs werden nur noch als positive Integer akzeptiert; leere ID-Listen brechen sauber ab.
++
++### Hoch: SQL-/Identifier-Injection und Vote-Integrity
++
++Betroffene Dateien:
++
++- `mods/access/users.php`
++- `mods/clansphere/options.php`
++- `mods/files/picture.php`
++- `mods/gallery/manage_advanced.php`
++- `mods/modules/deactivate.php`
++- `mods/static/edit.php`
++- `mods/votes/navlist.php`
++- `mods/votes/view.php`
++
++Finding:
++
++Einzelne Admin- und Vote-Pfade uebernahmen Request- oder Optionswerte in SQL-Bedingungen, dynamische SQL-Spaltennamen oder Abstimmungsdatensaetze. Besonders relevant waren eine rohe Access-Gruppen-ID, eine falsche Cast-Variable in `files/picture.php`, ein dynamischer `access_<module>`-Spaltenname, ungepruefte Vote-IDs/Antworten und ein ungeescapter Gallery-Dateiname in einer DELETE-Query.
++
++Fix:
++
++- Access-Gruppen-, File-, Vote- und Static-Access-IDs werden am Eingang gecastet und bounds-geprueft.
++- Modul-Deaktivierung erlaubt nur reale Modulverzeichnisse mit sicherem Identifier-Pattern und vorhandenem `access.php`.
++- Vote-Submits akzeptieren nur die aktuell geladene Vote-ID und Antwortnummern innerhalb der Wahloptionen; Multivotes werden dedupliziert und validiert.
++- `def_dstime` wird auf erlaubte Werte beschraenkt, bevor es global in User-Datensaetze geschrieben wird.
++- Gallery-Diff-Deletes escapen Dateinamen in SQL.
++
++### Hoch: Admin-Modulgenerator PHP-/SQL-Injection
++
++Betroffene Dateien:
++
++- `mods/modules/create.php`
++- `mods/modules/accessedit.php`
++
++Finding:
++
++Der Modulgenerator schrieb POST-Werte direkt in generierte PHP-Dateien und SQL-Spaltennamen.
++
++Fix:
++
++- Modulverzeichnis, Icon, Tabellennamen und Access-Actions validiert.
++- PHP-Stringwerte mit `var_export()` generiert.
++- Access-Level auf Integer 0 bis 5 begrenzt.
++- Verzeichnisrechte von `0777` auf `0755` reduziert.
++
++### Hoch: Stored/Reflected XSS in HTML-Attributen und AJAX
++
++Betroffene Dateien:
++
++- `system/output/xhtml_10.php`
++- `system/core/abcode.php`
++- `mods/abcode/listimg.php`
++- `mods/ajax/upload.php`
++- `mods/jquery/csp_ajax.js`
++- `mods/links/create.php`
++- `mods/links/edit.php`
++- `mods/links/view.php`
++- `mods/links/manage.php`
++- `mods/links/listcat.php`
++- `mods/links/sponsors.php`
++- `mods/awards/create.php`
++- `mods/awards/edit.php`
++- `mods/awards/manage.php`
++- `mods/awards/list.php`
++- `mods/squads/view.php`
++
++Finding:
++
++Zentrale HTML-Helfer gaben `href`, `src`, `alt`, `class` und `title` ohne Attribut-Encoding aus. AJAX nutzte clientseitiges `eval()` und setzte Upload-Dateinamen per `innerHTML`. Links- und Award-URLs konnten in Templates direkt in Attribute geschrieben werden.
++
++Fix:
++
++- `cs_html_attr()` und `cs_html_uri()` eingefuehrt.
++- `cs_html_link()` und `cs_html_img()` escapen Attribute und blockieren gefaehrliche URI-Schemes.
++- `cs_html_select()`, `cs_html_option()` und `cs_html_anchor()` escapen zentrale Namen, IDs, Werte, Styles und Option-Labels.
++- JavaScript-Stringwerte fuer ABCode werden mit `cs_jsquote()` escaped.
++- AJAX-`eval()` entfernt.
++- Debug-`eval()` entfernt.
++- Upload-Dateinamen werden als Textknoten statt per `innerHTML` eingefuegt.
++- JSON in Upload-Script-Tags entschärft `</script>`.
++- Links- und Award-URLs werden normalisiert, escaped und in SQL-Pruefungen korrekt escaped.
++
++### Hoch: SQL-Injection in Links-Duplikatspruefung
++
++Betroffene Dateien:
++
++- `mods/links/create.php`
++- `mods/links/edit.php`
++
++Finding:
++
++`links_name` und `links_url` wurden in Duplikatspruefungen direkt in SQL-Where-Strings eingebaut.
++
++Fix:
++
++- Beide Werte werden mit `cs_sql_escape()` in Where-Strings eingefuegt.
++- IDs werden gecastet.
++- Fehlerausgaben werden escaped.
++
++### Mittel: Redirect- und Header-Injection
++
++Betroffene Dateien:
++
++- `system/core/templates.php`
++- `mods/files/view.php`
++- `mods/files/download.php`
++- `mods/logs/roots.php`
++- `system/core/servervars.php`
++
++Finding:
++
++Einige `Location`-Header verwendeten request- oder datenbankkontrollierte Werte. `HTTP_HOST` wurde zu schwach normalisiert.
++
++Fix:
++
++- Redirects entfernen CR/LF.
++- Persistente XHR-Redirect-Parameter werden URL-encoded.
++- File-Mirror-Redirects nur noch `http://`/`https://`.
++- Mirror-Zielindizes werden gecastet und bounds-geprueft.
++- `HTTP_HOST` wird normalisiert und HTTPS-aware verarbeitet.
++
++### Mittel: Dynamische Includes und Ausfuehrungsprimitive
++
++Betroffene Dateien:
++
++- `system/core/functions.php`
++- `system/core/tools.php`
++- `mods/abcode/options.php`
++- `mods/abcode/startup.php`
++- `mods/clansphere/lang_modvalidate.php`
++- `mods/search/list.php`
++- `mods/files/functions.php`
++- `mods/servers/gameq/Protocol/ventrilo.php`
++
++Finding:
++
++Language-Validation nutzte `eval()`. Suche und Helper enthielten dynamische Includes/Requires, ABCode-RTE-Optionen konnten Modul-Includes aus Optionswerten zusammenbauen, und das Ventrilo-Protokoll nutzte `create_function()`.
++
++Fix:
++
++- `eval()` durch einen eingeschraenkten Parser fuer `$cs_lang['key'] = 'value';` ersetzt.
++- Search-Modul-Require auf Allowlist plus `file_exists()` beschraenkt.
++- Account- und Default-Sprachverzeichnisse werden zentral ueber `cs_safe_lang()` auf reale `lang/<dir>/system/main.php`-Verzeichnisse beschraenkt.
++- ABCode-RTE-Optionen speichern und laden nur noch erlaubte RTE-Modulverzeichnisse aus `cs_checkdirs()` mit vorhandenem `rte_init.php`.
++- Files-Helper prueft Access-Include auf Existenz.
++- `create_function()` durch Callback-Methode ersetzt.
++
++### Mittel: AJAX- und Search-Hardening
++
++Betroffene Dateien:
++
++- `mods/ajax/search_users.php`
++- `mods/categories/getcats.php`
++- `mods/board/search.php`
++- `mods/search/navlist.php`
++
++Finding:
++
++Mehrere AJAX-/Search-Parameter nutzten keine strikte Allowlist.
++
++Fix:
++
++- Board-Suchmodus und Suchbereich whitelisted.
++- AJAX-User-Search-Targets whitelisted.
++- Category-AJAX-Modulnamen validiert.
++- Search-Navigation escaped den Suchtext als HTML-Attribut und akzeptiert nur bekannte Suchmodule.
++
++### Mittel: Upload-Ausfuehrungsschutz und Dateirechte
++
++Betroffene Dateien:
++
++- `system/core/tools.php`
++- `system/core/functions.php`
++- `system/cache/file.php`
++- `system/cache/none.php`
++- `mods/rss/generate.php`
++- `mods/contact/imp_edit.php`
++- `mods/contact/mailsig_edit.php`
++- `mods/install/complete.php`
++- `uploads/.htaccess`
++- `uploads/gallery/.htaccess`
++- `uploads/web.config`
++- `uploads/gallery/web.config`
++- `webserver/nginx.conf`
++
++Finding:
++
++Upload-Verzeichnisse blockierten nur wenige Script-Erweiterungen. Einige erzeugte Dateien wurden executable oder world-writable gesetzt. Cache-Dateinamen waren nicht strikt auf sichere Tokens begrenzt.
++
++Fix:
++
++- Uploads, Logs, Cache- und RSS-Dateien werden mit `0644` geschrieben.
++- Installer setzt Verzeichnisse auf `0755` und Dateien auf `0644`.
++- Apache/IIS/Nginx blockieren PHP-Varianten und weitere serverseitige Script-Endungen unter Uploads.
++- File-Cache-Tokens werden auf sichere Dateinamen reduziert.
++
++### Mittel: Cache Object Injection und Cache-Integritaet
++
++Betroffene Dateien:
++
++- `system/cache/file.php`
++- `system/cache/none.php`
++
++Finding:
++
++Der File-Cache lud Daten mit direktem `unserialize()` aus beschreibbaren Cachedateien. Wenn ein Angreifer eine Cachedatei manipulieren konnte, waere PHP Object Injection moeglich gewesen. Zudem wurden Cachedateien appendend geschrieben.
++
++Fix:
++
++- Serialisierte Objekt-/Serializable-Payloads werden vor `unserialize()` erkannt und verweigert.
++- Unter PHP 7+ wird `unserialize(..., array('allowed_classes' => false))` genutzt.
++- Cache-Schreibvorgaenge verwenden Truncate-Write plus optionales `flock()`.
++- Cache-Namen sind auch im `none`-Backend normalisierte Tokens.
++
++### Mittel: Verbleibende Request-ID- und Sort-Hotspots
++
++Betroffene Dateien:
++
++- `mods/ajax/mail.php`
++- `mods/access/users.php`
++- `mods/board/sort.php`
++- `mods/board/rankimg.php`
++- `mods/boardmods/edit.php`
++- `mods/computers/edit.php`
++- `mods/medals/user.php`
++- `mods/gallery/image.php`
++- `mods/notifymods/edit.php`
++- `mods/votes/navlist.php`
++- `mods/votes/view.php`
++- `mods/wars/rounds.php`
++- `mods/wars/users.php`
++
++Finding:
++
++Einige Altstellen verliessen sich auf spaetere Casts oder Escapes, statt Request-IDs direkt am Eingang zu normalisieren. Die Board-Sortierung akzeptierte ausserdem ungepruefte Order-Werte, und die AJAX-Mail-Dekodierung akzeptierte nicht-strikte Base64-Eingaben.
++
++Fix:
++
++- IDs in den betroffenen Update-/Select-Pfaden explizit auf Integer gecastet.
++- Board-Order auf `0..9999` begrenzt.
++- Wars-Runden-Reorder castet `up` und `down` konsequent auf Integer und bricht bei fehlenden Zielrunden ohne SQL-Update ab.
++- Wars-User-Statistik nutzt nur noch integer-normalisierte User-IDs.
++- Mail-Obfuscation nutzt striktes `base64_decode(..., true)`.
++- Medal-User-Zuordnung und -Loeschung casten `where`, `delete`, `medals_id`, `start` und `sort` und begrenzen Sort-Keys auf definierte Werte.
++- Board-Rank-Bildbreiten werden auf Integer `0..100` beschraenkt.
++
++### Mittel: Externe Update-Abfragen
++
++Betroffene Dateien:
++
++- `mods/clansphere/version.php`
++- `mods/clansphere/sec_func.php`
++
++Finding:
++
++Update-/Security-News wurden per HTTP geladen und Remote-Felder wurden nicht strikt normalisiert.
++
++Fix:
++
++- Remote-URLs auf HTTPS umgestellt.
++- Remote-IDs werden gecastet.
++- Remote-Version/Datum/Textfelder werden vor Nutzung normalisiert bzw. escaped.
++
++### Mittel: Error Disclosure
++
++Betroffene Datei:
++
++- `system/core/functions.php`
++
++Finding:
++
++`display_errors` wurde auf `on` gesetzt und konnte interne Pfade, SQL-Details oder Stack-Informationen anzeigen.
++
++Fix:
++
++- Runtime-Setting auf `display_errors=off` geaendert.
++
++## Geaenderte Dateien
++
++- `install.php`
++- `mods/abcode/listimg.php`
++- `mods/abcode/options.php`
++- `mods/abcode/startup.php`
++- `mods/access/users.php`
++- `mods/ajax/search_users.php`
++- `mods/ajax/upload.php`
++- `mods/ajax/mail.php`
++- `mods/awards/create.php`
++- `mods/awards/edit.php`
++- `mods/awards/list.php`
++- `mods/awards/manage.php`
++- `mods/banners/edit.php`
++- `mods/banners/remove.php`
++- `mods/board/attachment.php`
++- `mods/board/com_create.php`
++- `mods/board/com_edit.php`
++- `mods/board/rankimg.php`
++- `mods/board/reportdel.php`
++- `mods/board/reportdone.php`
++- `mods/board/search.php`
++- `mods/board/sort.php`
++- `mods/board/thread_add.php`
++- `mods/board/thread_edit.php`
++- `mods/boardmods/edit.php`
++- `mods/buddys/center.php`
++- `mods/captcha/generate.php`
++- `mods/categories/getcats.php`
++- `mods/clansphere/lang_modvalidate.php`
++- `mods/clansphere/lang_view.php`
++- `mods/clansphere/navdebug.php`
++- `mods/clansphere/options.php`
++- `mods/clansphere/sec_func.php`
++- `mods/clansphere/temp_view.php`
++- `mods/clansphere/version.php`
++- `mods/computers/edit.php`
++- `mods/computers/picture.php`
++- `mods/contact/imp_edit.php`
++- `mods/contact/mailsig_edit.php`
++- `mods/explorer/chmod.php`
++- `mods/explorer/create.php`
++- `mods/explorer/create_dir.php`
++- `mods/explorer/edit.php`
++- `mods/explorer/functions.php`
++- `mods/explorer/remove.php`
++- `mods/explorer/roots.php`
++- `mods/explorer/upload.php`
++- `mods/explorer/view.php`
++- `mods/events/picture.php`
++- `mods/files/download.php`
++- `mods/files/functions.php`
++- `mods/files/picture.php`
++- `mods/files/view.php`
++- `mods/gallery/download.php`
++- `mods/gallery/com_view.php`
++- `mods/gallery/image.php`
++- `mods/gallery/manage_advanced.php`
++- `mods/notifymods/edit.php`
++- `mods/install/complete.php`
++- `mods/install/settings.php`
++- `mods/jquery/csp_ajax.js`
++- `mods/links/create.php`
++- `mods/links/edit.php`
++- `mods/links/listcat.php`
++- `mods/links/manage.php`
++- `mods/links/sponsors.php`
++- `mods/links/view.php`
++- `mods/logs/roots.php`
++- `mods/medals/user.php`
++- `mods/messages/archiv.php`
++- `mods/messages/multiremove.php`
++- `mods/modules/accessedit.php`
++- `mods/modules/create.php`
++- `mods/modules/deactivate.php`
++- `mods/news/picture.php`
++- `mods/pictures/functions.php`
++- `mods/rss/generate.php`
++- `mods/search/list.php`
++- `mods/search/navlist.php`
++- `mods/servers/gameq/Protocol/ventrilo.php`
++- `mods/squads/view.php`
++- `mods/shoutbox/multiremove.php`
++- `mods/static/edit.php`
++- `mods/static/options.php`
++- `mods/users/activate.php`
++- `mods/users/functions.php`
++- `mods/users/remove.php`
++- `mods/users/sendpw.php`
++- `mods/votes/navlist.php`
++- `mods/votes/view.php`
++- `mods/wars/picture.php`
++- `mods/wars/users.php`
++- `mods/wars/rounds.php`
++- `system/cache/file.php`
++- `system/cache/none.php`
++- `system/core/abcode.php`
++- `system/core/account.php`
++- `system/core/functions.php`
++- `system/core/servervars.php`
++- `system/core/templates.php`
++- `system/core/tools.php`
++- `system/output/xhtml_10.php`
++- `uploads/.htaccess`
++- `uploads/gallery/.htaccess`
++- `uploads/web.config`
++- `uploads/gallery/web.config`
++- `webserver/nginx.conf`
++
++## Verifikation
++
++Durchgefuehrt:
++
++- Statische Source-Review mit `rg`.
++- Re-Scans auf echte `eval()`-/`create_function()`-/Command-Execution-Primitiven.
++- Re-Scans auf vorhersehbare Token-Patterns, falsche Session-Rotation, `display_errors=on`, AJAX-`eval`, unsichere Upload-/Delete-/Header-/chmod-Patterns.
++- Re-Scans auf GET-Zustandsaenderungen, Request-kontrollierte Dateioperationen/Header und direkte Request-Werte in SQL-Helfern.
++- Vertiefte Re-Scans der direkten Bildendpunkte `mods/gallery/image.php`, `mods/board/attachment.php`, `mods/ajax/search_users.php`, `mods/categories/getcats.php`, `mods/captcha/generate.php` und `mods/clansphere/lang_modvalidate.php`.
++- `node --check mods/jquery/csp_ajax.js`.
++- Patch-Apply-Check gegen eine frische Extraktion der Original-ZIP.
++
++Nicht durchgefuehrt:
++
++- `php -l`, weil in dieser Umgebung kein `php`-Binary im PATH verfuegbar ist.
++- Vollstaendige Runtime-Tests, weil kein PHP-Webserver mit Datenbank fuer diese Alt-Codebase gestartet werden konnte.
++
++Empfohlene Nacharbeit:
++
++- In einer PHP-Umgebung `php -l` ueber alle geaenderten PHP-Dateien ausfuehren.
++- Login, Logout, Registrierung, Passwort-Reset, Uploads, Board-Attachments, Explorer-Admin, Module-Generator, Gallery-Rendering, File-Downloads und Installer einmal manuell durchtesten.
++- Passwortspeicherung von MD5/SHA1 auf `password_hash()` mit Login-time Migration umstellen.
++- Langfristig eine zentrale Template-Autoescaping-Strategie und eine strikte Content-Security-Policy einfuehren.
+diff --git a/install.php b/install.php
+index d583423..fe0bedd 100644
+--- a/install.php
++++ b/install.php
+@@ -21,6 +21,11 @@ $cs_main = array( 'charset'         => 'UTF-8',
+ 
+ require_once 'system/core/functions.php';
+ 
++if(file_exists('setup.php') AND !file_exists('install.sql')) {
++  header('HTTP/1.1 403 Forbidden');
++  die('Installation is already completed. Remove setup.php only if you intentionally want to reinstall.');
++}
++
+ cs_init($cs_main);
+ 
+ if(file_exists('setup.php')) {
+diff --git a/mods/abcode/listimg.php b/mods/abcode/listimg.php
+index 0bdcedd..0ecce79 100644
+--- a/mods/abcode/listimg.php
++++ b/mods/abcode/listimg.php
+@@ -14,7 +14,7 @@ $abcode_loop = count($cs_abcode);
+ for($run=0; $run<$abcode_loop; $run++) {
+   $data['abcode'][$run]['pattern'] = cs_secure($cs_abcode[$run]['abcode_pattern']);
+   $img = cs_secure($cs_abcode[$run]['abcode_pattern'],1,1);
+-  $url = "javascript:abc_insert_list('".$cs_abcode[$run]['abcode_pattern']."','','".$name."')";
++  $url = "javascript:abc_insert_list('".cs_jsquote($cs_abcode[$run]['abcode_pattern'])."','','".cs_jsquote($name)."')";
+   $data['abcode'][$run]['result'] = cs_html_link($url,$img,0);
+ }
+ echo cs_subtemplate(__FILE__,$data,'abcode','listimg');
+diff --git a/mods/abcode/options.php b/mods/abcode/options.php
+index fce3bdf..82b1d00 100644
+--- a/mods/abcode/options.php
++++ b/mods/abcode/options.php
+@@ -32,15 +32,31 @@ else {
+ 
+   require_once 'mods/clansphere/func_options.php';
+ 
++  if(!function_exists('cs_abcode_rte_allowed')) {
++    function cs_abcode_rte_allowed($dir, $show) {
++
++      $dir = (string) $dir;
++      if(empty($dir) OR !preg_match("=^[_a-z0-9-]+$=i", $dir))
++        return '';
++
++      $rte_dirs = cs_checkdirs('mods', $show);
++      foreach($rte_dirs AS $rte)
++        if($rte['dir'] == $dir AND file_exists('mods/' . $dir . '/rte_init.php'))
++          return $dir;
++
++      return '';
++    }
++  }
++
+   $save = array();
+-  $save['rte_html'] = $_POST['rte_html'];
+-  $save['rte_more'] = $_POST['rte_more'];
++  $save['rte_html'] = cs_abcode_rte_allowed($_POST['rte_html'], 'abcode/rte_html');
++  $save['rte_more'] = cs_abcode_rte_allowed($_POST['rte_more'], 'abcode/rte_more');
+   $save['max_width'] = (int) $_POST['max_width'];
+   $save['max_height'] = (int) $_POST['max_height'];
+   $save['max_size'] = (int) $_POST['max_size'];
+-  $save['def_func'] = $_POST['def_func'];
+-  $save['image_width'] = $_POST['image_width'];
+-  $save['image_height'] = $_POST['image_height'];
++  $save['def_func'] = in_array($_POST['def_func'], array('img', 'str')) ? $_POST['def_func'] : 'img';
++  $save['image_width'] = (int) $_POST['image_width'];
++  $save['image_height'] = (int) $_POST['image_height'];
+   $save['word_cut'] = $_POST['word_cut'] > 65535 ? 65535 : (int) $_POST['word_cut'];
+   $save['def_abcode'] = empty($_POST['def_abcode']) ? 0 : 1;
+ 
+diff --git a/mods/abcode/startup.php b/mods/abcode/startup.php
+index 504bdf1..823e209 100644
+--- a/mods/abcode/startup.php
++++ b/mods/abcode/startup.php
+@@ -6,6 +6,25 @@ global $cs_main;
+ 
+ $op_abcode = cs_sql_option(__FILE__, 'abcode');
+ 
++if(!function_exists('cs_abcode_rte_allowed')) {
++  function cs_abcode_rte_allowed($dir, $show) {
++
++    $dir = (string) $dir;
++    if(empty($dir) OR !preg_match("=^[_a-z0-9-]+$=i", $dir))
++      return '';
++
++    $rte_dirs = cs_checkdirs('mods', $show);
++    foreach($rte_dirs AS $rte)
++      if($rte['dir'] == $dir AND file_exists('mods/' . $dir . '/rte_init.php'))
++        return $dir;
++
++    return '';
++  }
++}
++
++$op_abcode['rte_html'] = cs_abcode_rte_allowed($op_abcode['rte_html'], 'abcode/rte_html');
++$op_abcode['rte_more'] = cs_abcode_rte_allowed($op_abcode['rte_more'], 'abcode/rte_more');
++
+ $cs_main['rte_html'] = $op_abcode['rte_html'];
+ $cs_main['rte_more'] = $op_abcode['rte_more'];
+ 
+diff --git a/mods/access/users.php b/mods/access/users.php
+index 41f05d3..ab1da4d 100644
+--- a/mods/access/users.php
++++ b/mods/access/users.php
+@@ -4,7 +4,7 @@
+ 
+ $cs_lang = cs_translate('access');
+ $cs_post = cs_post();
+-$access_id = empty($_REQUEST['id']) ? 0 : $_REQUEST['id'];
++$access_id = empty($_REQUEST['id']) ? 0 : (int) $_REQUEST['id'];
+ 
+ $data = array();
+ 
+diff --git a/mods/ajax/mail.php b/mods/ajax/mail.php
+index 69e2522..b49199e 100644
+--- a/mods/ajax/mail.php
++++ b/mods/ajax/mail.php
+@@ -2,8 +2,9 @@
+ // ClanSphere 2010 - www.clansphere.net
+ // $Id$
+ 
+-$string = base64_decode($_GET['mail']);
++$encoded = empty($_GET['mail']) ? '' : $_GET['mail'];
++$string = base64_decode($encoded, true);
+ $pattern = "=^[_a-z0-9-]+(\.[_a-z0-9-]+)*@([0-9a-z](-?[0-9a-z])*\.)+[a-z]{2}([zmuvtg]|fo|me)?$=i";
+-if(preg_match($pattern,$string)) {
++if($string !== false AND preg_match($pattern,$string)) {
+   echo $string;
+ }
+diff --git a/mods/ajax/search_users.php b/mods/ajax/search_users.php
+index f579562..e5bcd3d 100644
+--- a/mods/ajax/search_users.php
++++ b/mods/ajax/search_users.php
+@@ -24,7 +24,8 @@ if(!empty($current)) {
+ 
+   $data = array();
+   $data['data']['old'] = htmlspecialchars($old);
+-  $data['data']['target'] = empty($_GET['target']) ? 'users_nick' : $_GET['target'];
++  $target = empty($_GET['target']) ? 'users_nick' : $_GET['target'];
++  $data['data']['target'] = preg_match("=^[a-z0-9_-]+$=i", $target) ? $target : 'users_nick';
+ 
+   $where = "users_nick LIKE '%" . cs_sql_escape(trim($current)) . "%' AND users_active = 1 AND users_delete = 0";
+   $data['result'] = cs_sql_select(__FILE__, 'users', 'users_nick', $where, 0, 0, 7);
+diff --git a/mods/ajax/upload.php b/mods/ajax/upload.php
+index 7507b99..a789351 100644
+--- a/mods/ajax/upload.php
++++ b/mods/ajax/upload.php
+@@ -13,8 +13,13 @@ if(defined('UPLOAD_PROTECTED') AND !empty($_SESSION)) {
+   elseif(isset($_POST['upload_name']) AND isset($_FILES['' . $_POST['upload_name'] . '']['tmp_name'])) {
+     
+     $upload_name = $_POST['upload_name'];
++    if(!preg_match("=^[a-z0-9_-]+$=i", $upload_name)) {
++      die('Permission denied');
++    }
+     $file = $_FILES[$upload_name]['tmp_name'];
+-    $new_name = 'tmp_'.time().strrchr($_FILES[$upload_name]['name'],'.');
++    $extension = strtolower(substr(strrchr($_FILES[$upload_name]['name'],'.'),1));
++    $extension = preg_match("=^[a-z0-9]{1,8}$=i", $extension) ? '.' . $extension : '';
++    $new_name = 'tmp_' . cs_random_string(32) . $extension;
+     
+     $error = !cs_upload('cache', $new_name, $_FILES[$upload_name]['tmp_name'], 0);
+     if (!isset($_SESSION['ajaxuploads'])) $_SESSION['ajaxuploads'] = array();
+@@ -29,8 +34,9 @@ if(defined('UPLOAD_PROTECTED') AND !empty($_SESSION)) {
+     if($error) {
+       $upload['error'] = true;
+     }
++    $upload_json = str_replace('</', '<\/', json_encode($upload));
+     echo '<script language="javascript" type="text/javascript">';
+-    echo 'window.top.Clansphere.ajax.upload_complete(' . json_encode($upload) . ');';
++    echo 'window.top.Clansphere.ajax.upload_complete(' . $upload_json . ');';
+     echo '</script>';
+   }
+   else {
+diff --git a/mods/awards/create.php b/mods/awards/create.php
+index 514eb55..d8744f1 100644
+--- a/mods/awards/create.php
++++ b/mods/awards/create.php
+@@ -13,7 +13,7 @@ $cs_awards['awards_time'] = $awards_year . '-' . $awards_month . '-' .  $awards_
+ $cs_awards['games_id'] =  isset($_POST['games_id']) ? (int)$_POST['games_id'] : 0;
+ $cs_awards['awards_rank'] =  isset($_POST['awards_rank']) ? (int)$_POST['awards_rank'] : 0;
+ $cs_awards['awards_event'] =  isset($_POST['awards_event']) ? $_POST['awards_event'] : '';
+-$cs_awards['awards_event_url'] =  isset($_POST['awards_event_url']) ? $_POST['awards_event_url'] : '';
++$cs_awards['awards_event_url'] =  isset($_POST['awards_event_url']) ? cs_clean_url_part($_POST['awards_event_url']) : '';
+ $cs_awards['squads_id'] =  isset($_POST['squads_id']) ? (int)$_POST['squads_id'] : 0;
+ 
+ $error = 0;
+@@ -52,8 +52,8 @@ if(!isset($_POST['submit']) OR (isset($_POST['submit']) AND !empty($error)))
+   
+   $data['head']['body_create'] = !isset($_POST['submit']) ? $cs_lang['body_create'] : $errormsg;
+   
+-  $data['awards']['awards_event_url'] = $cs_awards['awards_event_url'];
+-  $data['awards']['awards_event'] = $cs_awards['awards_event'];
++  $data['awards']['awards_event_url'] = cs_secure($cs_awards['awards_event_url']);
++  $data['awards']['awards_event'] = cs_secure($cs_awards['awards_event']);
+   $data['awards']['awards_rank'] = $cs_awards['awards_rank'];
+   
+   $games = cs_sql_select(__FILE__,'games','games_name, games_id',0,1,1,0);
+diff --git a/mods/awards/edit.php b/mods/awards/edit.php
+index cb93902..58617c8 100644
+--- a/mods/awards/edit.php
++++ b/mods/awards/edit.php
+@@ -16,7 +16,7 @@ $cs_awards['awards_time'] = $awards_year . '-' . $awards_month . '-' .  $awards_
+ $cs_awards['games_id'] = isset($_POST['games_id']) ? (int)$_POST['games_id'] : 0;
+ $cs_awards['awards_rank'] =  isset($_POST['awards_rank']) ? (int)$_POST['awards_rank'] : 0;
+ $cs_awards['awards_event'] =  isset($_POST['awards_event']) ? $_POST['awards_event'] : '';
+-$cs_awards['awards_event_url'] =  isset($_POST['awards_event_url']) ? $_POST['awards_event_url'] : '';
++$cs_awards['awards_event_url'] =  isset($_POST['awards_event_url']) ? cs_clean_url_part($_POST['awards_event_url']) : '';
+ $cs_awards['squads_id'] =  isset($_POST['squads_id']) ? (int)$_POST['squads_id'] : 0;
+ 
+ $cs_games['games_name'] = isset($_POST['games_name']) ? $_POST['games_name'] : 0;
+@@ -61,8 +61,8 @@ if(!isset($_POST['submit']) OR (isset($_POST['submit']) AND !empty($error))) {
+     $data['head']['body_create'] = $errormsg;
+   }
+   
+-  $data['awards']['awards_event_url'] = $awards_edit['awards_event_url'];
+-  $data['awards']['awards_event'] = $awards_edit['awards_event'];
++  $data['awards']['awards_event_url'] = cs_secure(cs_clean_url_part($awards_edit['awards_event_url']));
++  $data['awards']['awards_event'] = cs_secure($awards_edit['awards_event']);
+   $data['awards']['awards_rank'] = $awards_edit['awards_rank'];
+   $data['awards']['awards_id'] = $awards_edit['awards_id'];
+   
+diff --git a/mods/awards/list.php b/mods/awards/list.php
+index 87aa2fe..1156886 100644
+--- a/mods/awards/list.php
++++ b/mods/awards/list.php
+@@ -18,6 +18,7 @@ $cs_sort[10] = 'squads_name ASC';
+ 
+ settype($_REQUEST['sort'],'integer'); 
+ $sort = empty($_REQUEST['sort']) ? 1 : $_REQUEST['sort'];
++$sort = isset($cs_sort[$sort]) ? $sort : 1;
+ $order = $cs_sort[$sort];
+ $awards_count = cs_sql_count(__FILE__,'awards');
+ 
+@@ -44,7 +45,7 @@ for($run=0; $run<$awards_loop; $run++) {
+   $data['awards'][$run]['awards_id'] = $cs_awards[$run]['awards_id'];
+   $data['awards'][$run]['awards_time'] = cs_date('date',$cs_awards[$run]['awards_time']);
+   $data['awards'][$run]['awards_event'] = cs_secure($cs_awards[$run]['awards_event']);
+-  $data['awards'][$run]['awards_event_url'] = $cs_awards[$run]['awards_event_url'];
++  $data['awards'][$run]['awards_event_url'] = cs_secure(cs_clean_url_part($cs_awards[$run]['awards_event_url']));
+   $data['awards'][$run]['awards_game_name'] = cs_secure($cs_awards[$run]['games_name']);
+   $data['awards'][$run]['squads_name'] = cs_secure($cs_awards[$run]['squads_name']);
+   $data['awards'][$run]['awards_game_id'] = $cs_awards[$run]['games_id'];
+diff --git a/mods/awards/manage.php b/mods/awards/manage.php
+index b1bc7be..d4100c8 100644
+--- a/mods/awards/manage.php
++++ b/mods/awards/manage.php
+@@ -14,6 +14,7 @@ $cs_sort[6] = 'awards_event ASC';
+ $cs_sort[7] = 'games_name DESC';
+ $cs_sort[8] = 'games_name ASC';
+ $sort = empty($_REQUEST['sort']) ? 1 : $_REQUEST['sort'];
++$sort = isset($cs_sort[$sort]) ? $sort : 1;
+ $order = $cs_sort[$sort];
+ $awards_count = cs_sql_count(__FILE__,'awards');
+ 
+@@ -46,7 +47,7 @@ for($run=0; $run<$awards_loop; $run++) {
+   $data['awards'][$run]['awards_id'] = $cs_awards[$run]['awards_id'];
+   $data['awards'][$run]['awards_time'] = cs_date('date',$cs_awards[$run]['awards_time']);
+   $data['awards'][$run]['awards_event'] = cs_secure($cs_awards[$run]['awards_event']);
+-  $data['awards'][$run]['awards_event_url'] = $cs_awards[$run]['awards_event_url'];
++  $data['awards'][$run]['awards_event_url'] = cs_secure(cs_clean_url_part($cs_awards[$run]['awards_event_url']));
+   
+   $data['awards'][$run]['awards_game_name'] = $cs_awards[$run]['games_name'];
+   $data['awards'][$run]['awards_game_id'] = $cs_awards[$run]['games_id'];
+diff --git a/mods/banners/edit.php b/mods/banners/edit.php
+index 5ac352f..5004f0f 100644
+--- a/mods/banners/edit.php
++++ b/mods/banners/edit.php
+@@ -62,9 +62,8 @@ if(isset($_POST['submit'])) {
+       $error = 0;
+       $message = '';
+       
+-    if($cs_banners['banners_picture'] != $filename AND file_exists($cs_banners['banners_picture'])) {
+-        unlink($cs_banners['banners_picture']);
+-      }
++    if($cs_banners['banners_picture'] != $filename AND !empty($cs_banners['banners_picture']))
++        cs_unlink('banners', basename($cs_banners['banners_picture']));
+       $cs_banners['banners_picture'] = 'uploads/banners/' . $filename;
+     }
+     else {
+diff --git a/mods/banners/remove.php b/mods/banners/remove.php
+index 28809b4..79de470 100644
+--- a/mods/banners/remove.php
++++ b/mods/banners/remove.php
+@@ -11,9 +11,8 @@ if(isset($cs_post['agree'])) {
+   $where = 'banners_id = ' . $banners_id;
+   $getpic = cs_sql_select(__FILE__,'banners','banners_picture',$where);
+ 
+-  if(file_exists($getpic['banners_picture'])) {
+-    unlink($getpic['banners_picture']);
+-  }
++  if(!empty($getpic['banners_picture']))
++    cs_unlink('banners', basename($getpic['banners_picture']));
+   cs_sql_delete(__FILE__,'banners',$banners_id);
+   cs_redirect($cs_lang['del_true'], 'banners');
+ }
+diff --git a/mods/board/attachment.php b/mods/board/attachment.php
+index e97ad20..4c3b26d 100644
+--- a/mods/board/attachment.php
++++ b/mods/board/attachment.php
+@@ -39,8 +39,7 @@ if(!empty($_GET['id'])) {
+     }
+ }
+ elseif (!empty($_GET['name'])) {
+-  $name = $_GET['name'];
+-  $cs_thread_file = cs_sql_select(__FILE__,'boardfiles','*',"boardfiles_name = '" . cs_sql_escape($name) . "'",0,0,1);
++  die(cs_error_internal(0, 'File not found'));
+ }
+ else {
+   die(cs_error_internal(0, 'File not found'));
+@@ -59,17 +58,17 @@ $name = strlen($file);
+ $ext = substr($file,$name - $extension + 1,$name);
+ 
+ if(!empty($id)) {
+-    $file_path = "../../uploads/board/files/".$cs_thread_file['boardfiles_id'].'.'.$ext;
++    $file_path = cs_safe_path("../../uploads/board/files", $cs_thread_file['boardfiles_id'].'.'.$ext, 1);
+ }
+ else {
+-    $file_path = "../../uploads/board/files/".$cs_thread_file['boardfiles_name'];
++    $file_path = cs_safe_path("../../uploads/board/files", $cs_thread_file['boardfiles_name'], 1);
+ }
+ 
+-if(!is_file($file_path))
++if($file_path === false OR !is_file($file_path))
+   die(cs_error_internal(0, 'File not found'));
+ 
+ if($ext == 'jpg' OR $ext=='JPG' OR $ext == 'jpeg' OR $ext=='JPEG' OR $ext == 'gif' OR $ext=='GIF' OR $ext == 'bmp' OR $ext=='BMP' OR $ext == 'png' OR $ext=='PNG') {
+-    echo "<img src='$file_path' alt='$file'></img>";
++    echo "<img src='" . cs_secure($file_path) . "' alt='" . cs_secure($file) . "'></img>";
+ }
+ else {
+ 
+@@ -86,8 +85,9 @@ else {
+                         'html'=> 'text/html');
+ 
+   header("Content-Description: File Transfer");
+-  header("Content-Type: " . $varMimeTypes[$ext]);
+-  header("Content-Disposition: attachment; filename=\"". $cs_thread_file['boardfiles_name'] ."\";");
++  $content_type = isset($varMimeTypes[strtolower($ext)]) ? $varMimeTypes[strtolower($ext)] : 'application/octet-stream';
++  header("Content-Type: " . $content_type);
++  header("Content-Disposition: attachment; filename=\"". str_replace(array("\r", "\n", '"'), '_', $cs_thread_file['boardfiles_name']) ."\";");
+   header("Content-Transfer-Encoding: binary");
+   @readfile($file_path);
+ }
+diff --git a/mods/board/com_create.php b/mods/board/com_create.php
+index 2554742..0f7ee4d 100644
+--- a/mods/board/com_create.php
++++ b/mods/board/com_create.php
+@@ -203,11 +203,7 @@ if(isset($_POST['submit']) OR isset($_POST['preview']) OR isset($_POST['advanced
+     if(!empty($files_gl["file_$num"]['name']) AND empty($file_error[$num])) {
+       $file_name[$num] = $files_gl["file_$num"]['name'];
+ 
+-      $hash = '';
+-      $pattern = "abcdefghijklmnopqrstuvwxyz";
+-      for($i=0;$i<8;$i++) {
+-        $hash .= $pattern{rand(0,25)};
+-      }
++      $hash = cs_random_string(16);
+       $file_upload_name[$num] = $hash . '.' . $ext;
+       if (cs_upload('board/files', $file_upload_name[$num], $files_gl["file_$num"]['tmp_name'])) {
+         $a++;
+diff --git a/mods/board/com_edit.php b/mods/board/com_edit.php
+index babaf18..fbd69f5 100644
+--- a/mods/board/com_edit.php
++++ b/mods/board/com_edit.php
+@@ -114,12 +114,7 @@ for($run=0; $run < $run_loop_files; $run++) {
+     $cs_boardfiles[$run]['boardfiles_name'] = $files_gl["file_$num"]['name'];
+     $cs_boardfiles[$run]['boardfiles_del'] = '0';
+ 
+-    $hash = '';
+-    $pattern = "abcdefghijklmnopqrstuvwxyz";
+-    for($i=0;$i<8;$i++)
+-    {
+-      $hash .= $pattern{rand(0,25)};
+-    }
++    $hash = cs_random_string(16);
+     $file_upload_name[$run] = $hash . '.' . $ext;
+ 
+     if (cs_upload('board/files', $file_upload_name[$run], $files_gl["file_$num"]['tmp_name'])) {
+diff --git a/mods/board/rankimg.php b/mods/board/rankimg.php
+index fdbc383..5837036 100644
+--- a/mods/board/rankimg.php
++++ b/mods/board/rankimg.php
+@@ -1,6 +1,8 @@
+ <?php
+-$width = $_GET['width'];
++$width = empty($_GET['width']) ? 0 : (int) $_GET['width'];
+ Header( "Content-type: image/gif");
++    if($width < 0)
++      $width = 0;
+     if($width > 100)
+       $width = 100;
+     
+diff --git a/mods/board/reportdel.php b/mods/board/reportdel.php
+index b6866f7..138c9a8 100644
+--- a/mods/board/reportdel.php
++++ b/mods/board/reportdel.php
+@@ -4,8 +4,13 @@
+ 
+ $cs_lang = cs_translate('board');
+ 
+-$report_id = $_GET['id'];
+-if(isset($_GET['agree'])) {
++$cs_get = cs_get('id,agree,cancel');
++$report_id = empty($cs_get['id']) ? 0 : $cs_get['id'];
++
++if($report_id < 1)
++  cs_redirect($cs_lang['del_false'],'board','reportlist');
++
++if(isset($cs_get['agree'])) {
+ 
+   cs_sql_delete(__FILE__,'boardreport',$report_id);
+   
+@@ -13,7 +18,7 @@ if(isset($_GET['agree'])) {
+ 
+   cs_redirect($cs_lang['del_true'],'board','reportlist');
+ }
+-elseif(isset($_GET['cancel'])) {
++elseif(isset($cs_get['cancel'])) {
+   cs_redirect($cs_lang['del_false'],'board','reportlist');
+ }
+ else {
+diff --git a/mods/board/reportdone.php b/mods/board/reportdone.php
+index faa67a9..a6e5681 100644
+--- a/mods/board/reportdone.php
++++ b/mods/board/reportdone.php
+@@ -4,7 +4,10 @@
+ 
+ $cs_lang = cs_translate('board');
+ 
+-$report_id = $_GET['id'];
++$cs_get = cs_get('id');
++$report_id = empty($cs_get['id']) ? 0 : $cs_get['id'];
++if($report_id < 1)
++  cs_redirect($cs_lang['del_false'],'board','reportlist');
+ 
+ $report_cells = array('boardreport_done');
+ $report_save = array(1);
+diff --git a/mods/board/search.php b/mods/board/search.php
+index 70cb21c..f613396 100644
+--- a/mods/board/search.php
++++ b/mods/board/search.php
+@@ -7,8 +7,10 @@ $data = array();
+ 
+ 
+ $keywords = empty($_POST['keywords']) ? '' : $_POST['keywords'];
+-$searchmode = empty($_POST['searchmode']) ? 1 : $_POST['searchmode'];
++$searchmode = empty($_POST['searchmode']) ? 1 : (int) $_POST['searchmode'];
++$searchmode = in_array($searchmode, array(1, 2)) ? $searchmode : 1;
+ $searcharea = empty($_POST['searcharea']) ? 'threads' : $_POST['searcharea'];
++$searcharea = in_array($searcharea, array('threads', 'comments')) ? $searcharea : 'threads';
+ $board_id = empty($_POST['board_id']) ? 0 : $_POST['board_id'];
+ settype($board_id,'integer');
+ $page = empty($_POST['page']) ? 0 : $_POST['page'];
+diff --git a/mods/board/sort.php b/mods/board/sort.php
+index 255b507..e7ee6cd 100644
+--- a/mods/board/sort.php
++++ b/mods/board/sort.php
+@@ -12,15 +12,19 @@ if (!empty($_GET['delall'])) {
+ 
+ if (!empty($_GET['board'])) {
+   $board_cells = array('board_order');
+-  $board_save = empty($_GET['order']) ? array(0) : array(cs_sql_escape($_GET['order']));
+-  cs_sql_update(__FILE__,'board',$board_cells,$board_save,cs_sql_escape($_GET['board']));
++  $order = empty($_GET['order']) ? 0 : (int) $_GET['order'];
++  $order = ($order < 0 OR $order > 9999) ? 0 : $order;
++  $board_save = array($order);
++  cs_sql_update(__FILE__,'board',$board_cells,$board_save,(int) $_GET['board']);
+   cs_redirect(NULL, 'board', 'sort');
+ }
+ 
+ if (!empty($_GET['cat'])) {
+   $board_cells = array('categories_order');
+-  $board_save = empty($_GET['order']) ? array(0) : array(cs_sql_escape($_GET['order']));
+-  cs_sql_update(__FILE__,'categories',$board_cells,$board_save,cs_sql_escape($_GET['cat']));
++  $order = empty($_GET['order']) ? 0 : (int) $_GET['order'];
++  $order = ($order < 0 OR $order > 9999) ? 0 : $order;
++  $board_save = array($order);
++  cs_sql_update(__FILE__,'categories',$board_cells,$board_save,(int) $_GET['cat']);
+   cs_redirect(NULL, 'board', 'sort');
+ }
+ 
+diff --git a/mods/board/thread_add.php b/mods/board/thread_add.php
+index b3d702c..b92c056 100644
+--- a/mods/board/thread_add.php
++++ b/mods/board/thread_add.php
+@@ -171,12 +171,7 @@ for($run=0; $run < $run_loop_files; $run++) {
+   if(!empty($files_gl["file_$num"]['name']) AND empty($file_error[$num])) {
+     $file_name[$num] = $files_gl["file_$num"]['name'];
+ 
+-    $hash = '';
+-    $pattern = "abcdefghijklmnopqrstuvwxyz";
+-    for($i=0;$i<8;$i++)
+-    {
+-      $hash .= $pattern{rand(0,25)};
+-    }
++    $hash = cs_random_string(16);
+     $file_upload_name[$num] = $hash . '.' . $ext;
+     if (cs_upload('board/files', $file_upload_name[$num], $files_gl["file_$num"]['tmp_name'])) {
+       $a++;
+diff --git a/mods/board/thread_edit.php b/mods/board/thread_edit.php
+index 476daf2..4465425 100644
+--- a/mods/board/thread_edit.php
++++ b/mods/board/thread_edit.php
+@@ -148,12 +148,7 @@ for($run=0; $run < $run_loop_files; $run++) {
+     $cs_boardfiles[$run]['boardfiles_name'] = $files_gl["file_$num"]['name'];
+     $cs_boardfiles[$run]['boardfiles_del'] = '0';
+ 
+-    $hash = '';
+-    $pattern = "abcdefghijklmnopqrstuvwxyz";
+-    for($i=0;$i<8;$i++)
+-    {
+-      $hash .= $pattern{rand(0,25)};
+-    }
++    $hash = cs_random_string(16);
+     $file_upload_name[$run] = $hash . '.' . $ext;
+ 
+     if (cs_upload('board/files', $file_upload_name[$run], $files_gl["file_$num"]['tmp_name'])) {
+diff --git a/mods/boardmods/edit.php b/mods/boardmods/edit.php
+index 8dcbee3..5f5374f 100644
+--- a/mods/boardmods/edit.php
++++ b/mods/boardmods/edit.php
+@@ -52,7 +52,7 @@ if(!empty($error) OR !isset($_POST['submit'])) {
+   
+   $boardmods_cells = array_keys($cs_bm);
+   $boardmods_save = array_values($cs_bm);
+-  cs_sql_update(__FILE__,'boardmods',$boardmods_cells,$boardmods_save,$_POST['id']);
++  cs_sql_update(__FILE__,'boardmods',$boardmods_cells,$boardmods_save,(int) $_POST['id']);
+   
+     cs_redirect($cs_lang['changes_done'],'boardmods');
+ } 
+diff --git a/mods/buddys/center.php b/mods/buddys/center.php
+index 11c8231..da55398 100644
+--- a/mods/buddys/center.php
++++ b/mods/buddys/center.php
+@@ -65,9 +65,12 @@ if(isset($_GET['notice'])) {
+   $select = 'bds.buddys_id AS buddys_id, bds.buddys_time AS buddys_time, bds.buddys_user AS ';
+   $select .= 'buddys_user, bds.users_id AS users_id, usr.users_nick AS users_nick, usr.users_active AS users_active, usr.users_delete AS users_delete, usr.users_laston AS ';
+   $select .= 'users_laston, bds.buddys_notice AS buddys_notice';
+-  $where = "buddys_id = '" . $id . "'";
++  $where = "buddys_id = '" . $id . "' AND bds.users_id = '" . $users_id . "'";
+   
+   $cs_buddys = cs_sql_select(__FILE__,$from,$select,$where);
++  if(empty($cs_buddys))
++    cs_redirect($cs_lang['del_false'],'buddys','center');
++
+   $buddys_loop = count($cs_buddys);
+   
+   $buddy_data['buddys']['users_link']     = cs_user($cs_buddys['buddys_user'], $cs_buddys['users_nick'], $cs_buddys['users_active'], $cs_buddys['users_delete']);
+diff --git a/mods/captcha/generate.php b/mods/captcha/generate.php
+index df36c68..9f691e7 100644
+--- a/mods/captcha/generate.php
++++ b/mods/captcha/generate.php
+@@ -13,12 +13,8 @@ cs_init($cs_main);
+ 
+ chdir('mods/captcha/');
+   
+-$hash = '';
+-$pattern = '1234567890abcdefghijklmnpqrstuvwxyz';
+ $max = isset($_GET['mini']) ? 3 : 6;
+-for($i=0;$i<$max;$i++) {
+-  $hash .= $pattern{rand(0,34)};
+-}
++$hash = cs_random_string($max);
+ 
+ $ip = cs_getip();
+ $timeout = cs_time() - 900;
+diff --git a/mods/categories/getcats.php b/mods/categories/getcats.php
+index f38efe5..2116df8 100644
+--- a/mods/categories/getcats.php
++++ b/mods/categories/getcats.php
+@@ -13,6 +13,9 @@ cs_init($cs_main);
+ 
+ require 'mods/categories/functions.php';
+ 
+-$mod = cs_sql_escape($_GET['mod']);
++$mod = empty($_GET['mod']) ? '' : $_GET['mod'];
++if(!preg_match("=^[a-z0-9_-]+$=i", $mod))
++  die(cs_error_internal(0, 'Invalid module'));
++$mod = cs_sql_escape($mod);
+ 
+ echo cs_categories_dropdown2($mod,0,0);
+diff --git a/mods/clansphere/lang_modvalidate.php b/mods/clansphere/lang_modvalidate.php
+index ee4c06e..218aba5 100644
+--- a/mods/clansphere/lang_modvalidate.php
++++ b/mods/clansphere/lang_modvalidate.php
+@@ -13,8 +13,12 @@ cs_init($cs_main);
+ 
+ global $cs_main, $account;
+ 
+-$language = $_GET['language'];
+-$module = $_GET['module'];
++$language = empty($_GET['language']) ? '' : $_GET['language'];
++$module = empty($_GET['module']) ? '' : $_GET['module'];
++if(!preg_match("=^[_a-z0-9-]+$=i", $language) OR !preg_match("=^[_a-z0-9-]+$=i", $module)) {
++  echo 'Ungueltige Parameter';
++  return;
++}
+ $fix = !isset($_GET['fix']) ? 0 : 1;
+ 
+ $file = 'lang/' . $language . '/' . $module . '.php';
+@@ -59,6 +63,13 @@ function cs_validate ($matches) {
+   return $result;
+ }
+ 
++function cs_lang_assign($line) {
++  global $cs_lang;
++
++  if(preg_match("=^\\\$cs_lang\\['(.*?)'\\]\\s*=\\s*'(.*?)';=s", $line, $matches))
++    $cs_lang[$matches[1]] = stripcslashes($matches[2]);
++}
++
+ $fp = file($file);
+ 
+ foreach ($fp AS $line) {
+@@ -73,7 +84,7 @@ foreach ($fp AS $line) {
+   $result = trim($result);
+   
+   if(empty($result)) {
+-    eval($line);
++    cs_lang_assign($line);
+     $file_new .= $line;
+   }
+   else {
+@@ -129,7 +140,7 @@ if(!empty($fix)) {
+     $result = trim($result);
+     
+     if(empty($result)) {
+-      eval($line);
++      cs_lang_assign($line);
+       $file_new .= $line;
+     }
+   else {
+diff --git a/mods/clansphere/lang_view.php b/mods/clansphere/lang_view.php
+index ad275ef..be25cf3 100644
+--- a/mods/clansphere/lang_view.php
++++ b/mods/clansphere/lang_view.php
+@@ -9,6 +9,8 @@ $dir = empty($_GET['dir']) ? '' : $_GET['dir'];
+ if(empty($dir) OR !preg_match("=^[_a-z0-9-]+$=i",$dir)) { 
+   $dir = $cs_main['def_lang'];
+ }
++if(!file_exists('lang/' . $dir . '/info.php'))
++  $dir = $cs_main['def_lang'];
+ 
+ $lang_diff = $dir == 'German' ? 'English' : 'German';
+ 
+diff --git a/mods/clansphere/navdebug.php b/mods/clansphere/navdebug.php
+index a8afa02..0af0187 100644
+--- a/mods/clansphere/navdebug.php
++++ b/mods/clansphere/navdebug.php
+@@ -77,6 +77,10 @@ if(empty($_SESSION['debug_navfile'])) {
+ }
+ else {
+ 
++  if(!isset($nav_array[$_SESSION['debug_navfile']])) {
++    $_SESSION['debug_navfile'] = 0;
++    cs_redirect('', $cs_main['def_mod'], $cs_main['def_action'], $cs_main['def_parameters']);
++  }
+   $nav_file = $nav_array[$_SESSION['debug_navfile']];
+   $remove = cs_link($cs_lang['remove'], $cs_main['def_mod'], $cs_main['def_action'], 'debug_navfile=none');
+   echo $nav_file . ' [ ' . $remove . ' ]' . cs_html_br(2);
+diff --git a/mods/clansphere/options.php b/mods/clansphere/options.php
+index 29575af..a151b44 100644
+--- a/mods/clansphere/options.php
++++ b/mods/clansphere/options.php
+@@ -40,7 +40,7 @@ if(isset($_POST['submit'])) {
+   $save['public'] = (int) $_POST['public'];
+   $save['maintenance_access'] = (int) $_POST['maintenance_access'];
+   $save['def_timezone'] = (int) $_POST['def_timezone'];
+-  $save['def_dstime'] = $_POST['def_dstime'];
++  $save['def_dstime'] = in_array($_POST['def_dstime'], array('0', 'on', 'off')) ? $_POST['def_dstime'] : '0';
+   $save['def_flood'] = $_POST['def_flood'];
+   $save['img_path'] = $_POST['img_path'];
+   $save['img_ext'] = $_POST['img_ext'];
+@@ -58,7 +58,7 @@ if(isset($_POST['submit'])) {
+   cs_cache_clear();
+ 
+   if(!empty($_POST['dstime_all'])) {
+-    $query = 'UPDATE {pre}_users SET users_dstime = \''.$_POST['def_dstime'].'\'';
++    $query = 'UPDATE {pre}_users SET users_dstime = \'' . $save['def_dstime'] . '\'';
+     cs_sql_query(__FILE__,$query);
+   }
+ 
+diff --git a/mods/clansphere/sec_func.php b/mods/clansphere/sec_func.php
+index e974bd0..a89c69a 100644
+--- a/mods/clansphere/sec_func.php
++++ b/mods/clansphere/sec_func.php
+@@ -4,9 +4,9 @@
+ 
+ function cs_cspnews($all = 0) {
+ 
+-  $remote_url_secnews = 'http://www.clansphere.net/clansphere/updates.txt';
++  $remote_url_secnews = 'https://www.clansphere.net/clansphere/updates.txt';
+ 
+-  $remote_url_newsid = 'http://www.clansphere.net/index/news/view/id/';
++  $remote_url_newsid = 'https://www.clansphere.net/index/news/view/id/';
+ 
+   $timeout = 5;
+ 
+@@ -50,6 +50,9 @@ function cs_cspnews($all = 0) {
+         $news = explode(';',$content);
+         $content = explode('@', $news[0]);
+ 
++        $content[0] = (int) $content[0];
++        $content[1] = isset($content[1]) ? $content[1] : '';
++
+         if($content[0] > $cs_main['sec_news']) {
+           $opt_where = "options_mod = 'clansphere' AND options_name = 'sec_news'";
+           $sec_news = (int) $content[0];
+@@ -74,6 +77,8 @@ function cs_cspnews($all = 0) {
+           $count = count($news)-1;
+           for($run=0; $run < $count; $run++) {
+             $content = explode("@", $news[$run]);
++            $content[0] = (int) $content[0];
++            $content[1] = isset($content[1]) ? $content[1] : '';
+             $data['infos'][$run]['text'] = cs_secure($content[1]);
+             $url = $remote_url_newsid . $content[0];
+             $data['infos'][$run]['view'] = cs_html_link($url,$cs_lang['view']);
+diff --git a/mods/clansphere/temp_view.php b/mods/clansphere/temp_view.php
+index 2d29d38..dc9b8d7 100644
+--- a/mods/clansphere/temp_view.php
++++ b/mods/clansphere/temp_view.php
+@@ -9,6 +9,8 @@ $dir = empty($_GET['dir']) ? '' : $_GET['dir'];
+ if(empty($dir) OR !preg_match("=^[_a-z0-9-]+$=i",$dir)) { 
+   $dir = $cs_main['def_tpl'];
+ }
++if(!file_exists('templates/' . $dir . '/info.php'))
++  $dir = 'base';
+ 
+ include('templates/' . $dir . '/info.php');
+ 
+diff --git a/mods/clansphere/version.php b/mods/clansphere/version.php
+index 3b42b35..2af0f75 100644
+--- a/mods/clansphere/version.php
++++ b/mods/clansphere/version.php
+@@ -10,9 +10,9 @@ $local = array('version' => $cs_main['version_name'], 'published' => $cs_main['v
+ 
+ $remote = array('version' => '-', 'published' => '1970-01-01', 'id' => 0);
+ 
+-$remote_url_download = 'http://www.clansphere.net/index/files/view/id/12';
++$remote_url_download = 'https://www.clansphere.net/index/files/view/id/12';
+ 
+-$remote_url_version = 'http://www.clansphere.net/clansphere/version.txt';
++$remote_url_version = 'https://www.clansphere.net/clansphere/version.txt';
+ 
+ $timeout = 5;
+ 
+@@ -38,6 +38,8 @@ else {
+     $content = explode(' ', $content);
+     $remote = array('version' => $content[0], 'published' => $content[1], 'id' => $content[2]);
+     settype($remote['id'], 'integer');
++    $remote['version'] = preg_replace("=[^a-z0-9._ -]=i", '', $remote['version']);
++    $remote['published'] = preg_replace("=[^0-9-]=i", '', $remote['published']);
+   }
+ }
+ 
+diff --git a/mods/computers/edit.php b/mods/computers/edit.php
+index 1cb8f90..37ac0f9 100644
+--- a/mods/computers/edit.php
++++ b/mods/computers/edit.php
+@@ -68,7 +68,7 @@ else {
+ 
+   $computers_cells = array_keys($cs_computers);
+   $computers_save = array_values($cs_computers);
+-  cs_sql_update(__FILE__,'computers',$computers_cells,$computers_save,$_POST['id']);
++  cs_sql_update(__FILE__,'computers',$computers_cells,$computers_save,(int) $_POST['id']);
+   
+   #$referrer = strpos($_POST['referer'],'manage') === false ? 'center' : 'manage';
+   $referrer = $account['access_computers'] < 3 ? 'center' : 'manage';
+diff --git a/mods/computers/picture.php b/mods/computers/picture.php
+index 8b6f164..b86ce3e 100644
+--- a/mods/computers/picture.php
++++ b/mods/computers/picture.php
+@@ -7,7 +7,7 @@ $cs_lang = cs_translate('computers');
+ $files_gl = cs_files();
+ 
+ $cs_post = cs_post('id');
+-$cs_get = cs_get('id');
++$cs_get = cs_get('id,delete');
+ 
+ $cs_computers_id = empty($cs_get['id']) ? 0 : $cs_get['id'];
+ if (!empty($cs_post['id']))  $cs_computers_id = $cs_post['id'];
+@@ -17,6 +17,9 @@ $img_filetypes = array('gif','jpg','png');
+ 
+ $select = 'computers_pictures, users_id';
+ $computer = cs_sql_select(__FILE__,'computers',$select,"computers_id = '" . $cs_computers_id . "'");
++if(empty($computer))
++  cs_redirect($cs_lang['del_false'],'computers','center');
++
+ $computer_string = $computer['computers_pictures'];
+ $computer_pics = empty($computer_string) ? array() : explode("\n",$computer_string);
+ $computer_next = count($computer_pics) + 1;
+@@ -24,7 +27,14 @@ $computer_next = count($computer_pics) + 1;
+ $error = '';
+ 
+ if(!empty($_GET['delete'])) {
+-  $target = $_GET['delete'] - 1;
++  if($computer['users_id'] != $account['users_id'] AND $account['access_computers'] < 4) {
++    $error .= $cs_lang['not_own'] . cs_html_br(1);
++  }
++  $target = $cs_get['delete'] - 1;
++  if(empty($error) AND !isset($computer_pics[$target]))
++    cs_redirect($cs_lang['del_false'],'computers','picture','id=' . $cs_computers_id);
++
++  if(empty($error)) {
+   cs_unlink('computers', 'picture-' . $computer_pics[$target]);
+   cs_unlink('computers', 'thumb-' . $computer_pics[$target]);
+   $computer_pics[$target] = FALSE;
+@@ -33,6 +43,7 @@ if(!empty($_GET['delete'])) {
+   $cells = array('computers_pictures');
+   $content = array($computer_string);
+   cs_sql_update(__FILE__,'computers',$cells,$content,$cs_computers_id);
++  }
+ }
+ elseif(!empty($_POST['submit'])) {
+   
+diff --git a/mods/contact/imp_edit.php b/mods/contact/imp_edit.php
+index a44567c..8583a7d 100644
+--- a/mods/contact/imp_edit.php
++++ b/mods/contact/imp_edit.php
+@@ -28,7 +28,7 @@ if(isset($_POST['submit'])) {
+     cs_unlink('imprint', 'imprint.txt');
+ 
+     $fp = fopen ($filename, "w");
+-    chmod($filename,0777);
++    chmod($filename,0644);
+     $imp_time = cs_time();
+     $content  = $imp_time;
+     $content .= '{laststandbreak}';
+@@ -37,7 +37,7 @@ if(isset($_POST['submit'])) {
+     if(function_exists('stream_encoding'))
+       stream_encoding($fp, $cs_main['charset']);
+     fwrite ($fp, $content);
+-    chmod($filename, 0755);
++    chmod($filename, 0644);
+     fclose ($fp);
+ 
+   if($account['access_wizard'] == 5) {
+diff --git a/mods/contact/mailsig_edit.php b/mods/contact/mailsig_edit.php
+index 75f68dd..c9530ab 100644
+--- a/mods/contact/mailsig_edit.php
++++ b/mods/contact/mailsig_edit.php
+@@ -22,12 +22,12 @@ if(isset($_POST['submit'])) {
+     cs_unlink('imprint', 'mailsig.txt');
+ 
+     $fp = fopen ($filename, "w");
+-    chmod($filename,0777);
++    chmod($filename,0644);
+     # set stream encoding if possible to avoid converting issues
+     if(function_exists('stream_encoding'))
+       stream_encoding($fp, $cs_main['charset']);
+     fwrite ($fp, $mailsig);
+-    chmod($filename, 0755);
++    chmod($filename, 0644);
+     fclose ($fp);
+ }
+ if(!empty($sig_form)) {
+diff --git a/mods/events/picture.php b/mods/events/picture.php
+index 0c9fa68..6c4c023 100644
+--- a/mods/events/picture.php
++++ b/mods/events/picture.php
+@@ -5,7 +5,7 @@
+ $cs_lang = cs_translate('events');
+ 
+ $cs_post = cs_post('id');
+-$cs_get = cs_get('id');
++$cs_get = cs_get('id,delete');
+ $data = array();
+ 
+ $files_gl = cs_files();
+@@ -17,6 +17,9 @@ $op_events = cs_sql_option(__FILE__,'events');
+ $img_filetypes = array('gif','jpg','png');
+ 
+ $war = cs_sql_select(__FILE__,'events','events_pictures',"events_id = '" . $cs_events_id . "'");
++if(empty($war))
++  cs_redirect($cs_lang['del_false'],'events','manage');
++
+ $war_string = $war['events_pictures'];
+ $war_pics = empty($war_string) ? array() : explode("\n",$war_string);
+ $war_next = count($war_pics) + 1;
+@@ -24,7 +27,10 @@ $war_next = count($war_pics) + 1;
+ $error = '';
+ 
+ if(!empty($_GET['delete'])) {
+-  $target = $_GET['delete'] - 1;
++  $target = $cs_get['delete'] - 1;
++  if(!isset($war_pics[$target]))
++    cs_redirect($cs_lang['del_false'],'events','picture','id=' . $cs_events_id);
++
+   cs_unlink('events', 'picture-' . $war_pics[$target]);
+   cs_unlink('events', 'thumb-' . $war_pics[$target]);
+   $war_pics[$target] = FALSE;
+diff --git a/mods/explorer/chmod.php b/mods/explorer/chmod.php
+index 64eb296..7f003a0 100644
+--- a/mods/explorer/chmod.php
++++ b/mods/explorer/chmod.php
+@@ -15,13 +15,14 @@ $data = array();
+ 
+ if(empty($_POST['submit'])) {
+ 
++  $target_file = cs_safe_path($cs_main['def_path'], $dir, 1);
+   if(empty($dir)) {
+ 
+     cs_redirect($cs_lang['no_selection'],'explorer','roots','dir=' . $red_lsd);
+ 
+-  } else {
++  } elseif($target_file !== false) {
+ 
+-    $chmod = substr(sprintf('%o', fileperms($dir)), -3);
++    $chmod = substr(sprintf('%o', fileperms($target_file)), -3);
+ 
+     $data['var']['source'] = $dir;
+     $data['var']['chmod'] = $chmod;
+@@ -45,9 +46,14 @@ if(empty($_POST['submit'])) {
+ 
+     echo cs_subtemplate(__FILE__, $data, 'explorer', 'chmod');
+   }
++  else {
++    cs_redirect($cs_lang['no_selection'],'explorer','roots','dir=' . $red_lsd);
++  }
+ } else {
+ 
+-  $chmod = (int) $_POST['chmod'];
++  $chmod = isset($_POST['chmod']) ? (string) $_POST['chmod'] : '';
++  if(!preg_match("=^[0-7]{1,3}$=", $chmod))
++    die(cs_error_internal(0, 'Invalid chmod value'));
+ 
+   $count = strlen($chmod);
+   $missing = 4 - $count;
+@@ -59,9 +65,12 @@ if(empty($_POST['submit'])) {
+   $new_chmod .= $chmod;
+   $new_chmod = octdec($new_chmod);
+ 
+-  @chmod($dir, $new_chmod);
++  $target_file = cs_safe_path($cs_main['def_path'], $dir, 1);
++  if($target_file === false)
++    die(cs_error_internal(0, 'Invalid target path'));
++  @chmod($target_file, $new_chmod);
+ 
+-  $fileperms = octdec(substr(sprintf('%o', fileperms($dir)), -4));
++  $fileperms = octdec(substr(sprintf('%o', fileperms($target_file)), -4));
+   $message = $new_chmod == $fileperms ? $cs_lang['success'] : $cs_lang['error_chmod'];
+ 
+   cs_redirect($message, 'explorer','roots','dir=' . $red_lsd);
+diff --git a/mods/explorer/create.php b/mods/explorer/create.php
+index e855b0d..209d012 100644
+--- a/mods/explorer/create.php
++++ b/mods/explorer/create.php
+@@ -28,14 +28,16 @@ if(empty($_POST['submit'])) {
+ }
+ else {
+ 
+-  $dir = str_replace('..','',$_POST['data_folder']);
++  $dir = cs_explorer_path($_POST['data_folder'], 'raw');
+ 
+   if (substr($dir,-1) != '/' && !empty($dir))
+     $dir .= '/';
+ 
+-  $filename = empty($_POST['data_name']) ? 'unnamed' : str_replace('..', '', $_POST['data_name']);
++  $filename = empty($_POST['data_name']) ? 'unnamed' : cs_safe_filename($_POST['data_name']);
++  if($filename === false)
++    die(cs_error_internal(0, 'Invalid file name'));
+   $file = $dir . $filename;
+-  $ending = !empty($_POST['data_type']) ? str_replace('..','',$_POST['data_type']) : '';
++  $ending = !empty($_POST['data_type']) ? preg_replace("=[^a-z0-9.]=i", '', $_POST['data_type']) : '';
+ 
+   if (empty($ending) && strpos($file,'.') !== false) {
+     $ending = strtolower(strrchr($file,'.'));
+@@ -52,15 +54,18 @@ else {
+   }
+ 
+   $file = $file_test . $ending;
++  $target_file = cs_safe_path($cs_main['def_path'], $file, 0);
++  if($target_file === false)
++    die(cs_error_internal(0, 'Invalid target path'));
+ 
+-  $data = fopen($file,'w');
++  $data = fopen($target_file,'w');
+   # set stream encoding if possible to avoid converting issues
+   if(function_exists('stream_encoding'))
+     stream_encoding($data, $cs_main['charset']);
+   fwrite($data,$_POST['data_content']);
+   fclose($data);
+ 
+-  $message = is_file($file) ? sprintf($cs_lang['file_created'],$file) : $cs_lang['file_error'];
++  $message = is_file($target_file) ? sprintf($cs_lang['file_created'],$file) : $cs_lang['file_error'];
+   $red_lsd = cs_explorer_path($dir, 'escape');
+ 
+   cs_redirect($message, 'explorer','roots','dir='.$red_lsd);
+diff --git a/mods/explorer/create_dir.php b/mods/explorer/create_dir.php
+index b245b96..531e10e 100644
+--- a/mods/explorer/create_dir.php
++++ b/mods/explorer/create_dir.php
+@@ -22,7 +22,12 @@ else {
+ 
+   if (substr($dir,-1,1) != '/' && !empty($dir)) $dir .= '/';
+ 
+-  $dir_created = str_replace('..','',$dir . $_POST['folder_name']);
++  $folder_name = cs_safe_filename($_POST['folder_name']);
++  if($folder_name === false)
++    die(cs_error_internal(0, 'Invalid directory name'));
++  $dir_created = cs_safe_path($cs_main['def_path'], $dir . $folder_name, 0);
++  if($dir_created === false)
++    die(cs_error_internal(0, 'Invalid target path'));
+ 
+   $message = mkdir($dir_created, 0755) ? $cs_lang['success'] : $cs_lang['error'];
+ 
+diff --git a/mods/explorer/edit.php b/mods/explorer/edit.php
+index 696f506..09e4537 100644
+--- a/mods/explorer/edit.php
++++ b/mods/explorer/edit.php
+@@ -14,15 +14,16 @@ $data = array();
+ 
+ if(empty($_POST['submit'])) {
+ 
++  $target_file = cs_safe_path($cs_main['def_path'], $dir, 1);
+   if(empty($dir)) {
+     cs_redirect($cs_lang['no_file'], 'explorer', 'roots');
+-  } elseif(!file_exists($cs_main['def_path'] . '/' . $dir)) {
++  } elseif($target_file === false OR !file_exists($target_file)) {
+     cs_redirect($cs_lang['not_found'] . ': ' . $dir, 'explorer', 'roots');
+-  } elseif (!$file = fopen($cs_main['def_path'] . '/' . $dir,'r')) {
++  } elseif (!$file = fopen($target_file,'r')) {
+     cs_redirect($cs_lang['file_not_opened'], 'explorer', 'roots');
+   } else {
+ 
+-    $content = fread($file,filesize($cs_main['def_path'] . '/' . $dir));
++    $content = fread($file,filesize($target_file));
+     fclose($file);
+ 
+     $ending = strtolower(substr(strrchr($dir,'.'),1));
+@@ -50,7 +51,10 @@ if(empty($_POST['submit'])) {
+ }
+ else {
+ 
+-  $data = fopen($cs_main['def_path'] . '/' . $dir,'w');
++  $target_file = cs_safe_path($cs_main['def_path'], $dir, 1);
++  if($target_file === false OR !is_file($target_file))
++    die(cs_error_internal(0, 'Invalid target path'));
++  $data = fopen($target_file,'w');
+   # set stream encoding if possible to avoid converting issues
+   if(function_exists('stream_encoding'))
+     stream_encoding($data, $cs_main['charset']);
+diff --git a/mods/explorer/functions.php b/mods/explorer/functions.php
+index f63f55f..da3e6e9 100644
+--- a/mods/explorer/functions.php
++++ b/mods/explorer/functions.php
+@@ -3,6 +3,12 @@
+ // $Id$
+ 
+ function cs_remove_dir($path) {
++
++  global $cs_main;
++  $safe_path = cs_safe_path($cs_main['def_path'], $path, 1);
++  if($safe_path === false OR $safe_path == realpath($cs_main['def_path']))
++    return false;
++  $path = $safe_path;
+   
+   if (substr($path, -1, 1) != '/')
+     $path .= '/';
+@@ -30,6 +36,7 @@ function cs_remove_dir($path) {
+ 
+ function cs_explorer_path($path, $method, $sub = 0) {
+ 
++  global $cs_main;
+   # this function should be used to handle path data in and from urls
+   # the following escaped slash sign should only reside here
+   $slash_esc = '@_@';
+@@ -37,12 +44,24 @@ function cs_explorer_path($path, $method, $sub = 0) {
+   if($method == 'raw')
+     $path = str_replace($slash_esc,'/',$path);
+ 
++  $path = str_replace('\\', '/', (string) $path);
++  $path = preg_replace("=/+=", '/', $path);
+   $path = str_replace('..', '', $path);
+   $path = ($path == '/') ? $path : rtrim($path, '/');
+ 
+   if(!empty($sub))
+     $path = substr($path, 0, strrpos($path, '/'));
+ 
++  if($method == 'raw') {
++    $safe_path = cs_safe_path($cs_main['def_path'], $path, 0);
++    if($safe_path === false)
++      return '';
++    $base = str_replace('\\', '/', realpath($cs_main['def_path']));
++    $safe_path = str_replace('\\', '/', $safe_path);
++    $path = ltrim(substr($safe_path, strlen($base)), '/');
++    $path = empty($path) ? '.' : $path;
++  }
++
+   if($method == 'escape')
+     $path = str_replace('/',$slash_esc,$path);
+ 
+diff --git a/mods/explorer/remove.php b/mods/explorer/remove.php
+index 08cee2d..9a1fa7f 100644
+--- a/mods/explorer/remove.php
++++ b/mods/explorer/remove.php
+@@ -12,9 +12,10 @@ $red_lsd = cs_explorer_path($dir, 'escape', 1);
+ 
+ if(empty($_POST['submit']) && empty($_POST['cancel'])) {
+ 
++  $target_file = cs_safe_path($cs_main['def_path'], $dir, 1);
+   if(empty($dir)) {
+     cs_redirect($cs_lang['no_file'], 'explorer','roots') ;
+-  } elseif(!file_exists($cs_main['def_path'] . '/' . $dir)) {
++  } elseif($target_file === false OR !file_exists($target_file)) {
+     cs_redirect($cs_lang['not_found'] . ': ' . $dir, 'explorer','roots') ;
+   } else {
+ 
+@@ -31,13 +32,16 @@ if(empty($_POST['submit']) && empty($_POST['cancel'])) {
+   
+ } else {
+   
+-  if (is_dir($cs_main['def_path'] . '/' . $dir)) {
++  $target_file = cs_safe_path($cs_main['def_path'], $dir, 1);
++  if($target_file === false OR $target_file == realpath($cs_main['def_path']))
++    die(cs_error_internal(0, 'Invalid target path'));
++  if (is_dir($target_file)) {
+ 
+     cs_remove_dir($dir);
+-    $message = !is_dir($cs_main['def_path'] . '/' . $dir) ? $cs_lang['dir_removed'] : $cs_lang['dir_error'];
++    $message = !is_dir($target_file) ? $cs_lang['dir_removed'] : $cs_lang['dir_error'];
+     
+   } else { 
+-    $message = unlink($cs_main['def_path'] . '/' . $dir) ? $cs_lang['file_removed'] : $cs_lang['file_remove_error'];
++    $message = unlink($target_file) ? $cs_lang['file_removed'] : $cs_lang['file_remove_error'];
+   }
+   
+   cs_redirect($message, 'explorer','roots','dir=' . $red_lsd);
+diff --git a/mods/explorer/roots.php b/mods/explorer/roots.php
+index 751ff18..9cec7ab 100644
+--- a/mods/explorer/roots.php
++++ b/mods/explorer/roots.php
+@@ -21,7 +21,8 @@ $success = 1;
+ $dirs = array();
+ $files = array();
+ 
+-$target = $cs_main['def_path'] . '/' . $dir . '/';
++$target = cs_safe_path($cs_main['def_path'], $dir, 1);
++$target = $target === false ? false : $target . '/';
+ 
+ if (is_dir($target) AND chdir($target)) {
+ 
+@@ -101,7 +102,7 @@ if(!empty($success)) {
+       $save[$y]['name'] = cs_link($datas[$x],'explorer','view','file='.$file);
+     } elseif ($type == 'dir') {
+       $save[$y]['name'] = cs_link($datas[$x],'explorer','roots','dir='.$file);
+-    } elseif ($type == 'html' || $type == 'htm' || $type = 'php' || $type == 'txt' || $type == 'sql') {
++    } elseif ($type == 'html' || $type == 'htm' || $type == 'php' || $type == 'txt' || $type == 'sql') {
+       $save[$y]['name'] = cs_link($datas[$x],'explorer','view','file='.$file);
+     }
+   }
+diff --git a/mods/explorer/upload.php b/mods/explorer/upload.php
+index 637ecf9..f50ab66 100644
+--- a/mods/explorer/upload.php
++++ b/mods/explorer/upload.php
+@@ -38,17 +38,27 @@ else {
+ 
+   $filename = $dir . '/';
+   $extension = strtolower(substr(strrchr($files_gl['file']['name'],'.'),1));
++  $extension = preg_match("=^[a-z0-9]{1,8}$=i", $extension) ? $extension : '';
+ 
+   if (empty($_POST['name'])) {
+-    $filename .= str_replace('..','',$files_gl['file']['name']);
++    $safe_name = cs_safe_filename($files_gl['file']['name']);
++    if($safe_name === false)
++      die(cs_error_internal(0, 'Invalid file name'));
++    $filename .= $safe_name;
+     $action = substr($files_gl['file']['name'],0,strlen($files_gl['file']['name']) - strlen($extension) - 1);
+   } else {
+-    $filename .= str_replace('..','',$_POST['name']);
+-    $filename .= '.' . strtolower($extension);
++    $safe_name = cs_safe_filename($_POST['name']);
++    if($safe_name === false OR empty($extension))
++      die(cs_error_internal(0, 'Invalid file name'));
++    $filename .= $safe_name;
++    $filename .= '.' . $extension;
+     $action = $_POST['name'];
+   }
++  $target_file = cs_safe_path($cs_main['def_path'], $filename, 0);
++  if($target_file === false)
++    die(cs_error_internal(0, 'Invalid target path'));
+   
+-  $message = move_uploaded_file($files_gl['file']['tmp_name'],$filename) ? $cs_lang['success'] : $cs_lang['error_upload'];
++  $message = move_uploaded_file($files_gl['file']['tmp_name'],$target_file) ? $cs_lang['success'] : $cs_lang['error_upload'];
+   
+   cs_redirect($message,'explorer','roots','dir='.$lsd);
+ 
+diff --git a/mods/explorer/view.php b/mods/explorer/view.php
+index 16efbc9..b3158b9 100644
+--- a/mods/explorer/view.php
++++ b/mods/explorer/view.php
+@@ -47,7 +47,7 @@ if (empty($dir)) {
+         if ($ending == 'tpl') $notable = 1;
+       } else {
+         $content = cs_secure(file_get_contents($dir),1,0,0);
+-        $add = cs_link($cs_lang['design'],'explorer','view','file='.lsd);
++        $add = cs_link($cs_lang['design'],'explorer','view','file='.$lsd);
+       }
+       break;
+     
+diff --git a/mods/files/download.php b/mods/files/download.php
+index 73c06ae..afb2351 100644
+--- a/mods/files/download.php
++++ b/mods/files/download.php
+@@ -25,6 +25,8 @@ if(!empty($files_loop)) {
+   $files_mirror = $cs_files['files_mirror']; 
+ 
+   $temp_mirror1 = explode("-----", $files_mirror);
++  if($mirror_id < 0 OR !isset($temp_mirror1[$mirror_id]))
++    cs_redirect(NULL, 'files', 'view', 'where=' . $files_id);
+   $mirror = explode("\n", $temp_mirror1[$mirror_id]); 
+ 
+   $files_count = $files_count + 1;
+@@ -34,7 +36,11 @@ if(!empty($files_loop)) {
+ 
+   if(empty($advanced) AND isset($mirror[1]))
+   {
+-    header('Location: ' . $mirror[1]);
++    $location = trim($mirror[1]);
++    if(preg_match("=^https?://[^\r\n]+$=i", $location))
++      header('Location: ' . $location);
++    else
++      cs_redirect(NULL, 'files', 'view', 'where=' . $files_id);
+   }  
+   elseif(!empty($advanced))
+   {
+diff --git a/mods/files/functions.php b/mods/files/functions.php
+index d632ee3..00a57e2 100644
+--- a/mods/files/functions.php
++++ b/mods/files/functions.php
+@@ -10,6 +10,8 @@ function cs_datacontrol($data_id, $div = 0, $style = '',$more = '') {
+   $get_axx = 'mods/' . $mod . '/access.php';
+   $axx_file = array();
+ 
++  if(!file_exists($get_axx))
++    return $content;
+   include($get_axx);
+ 
+   if(!empty($div)) {
+diff --git a/mods/files/picture.php b/mods/files/picture.php
+index f24033a..3f9b701 100644
+--- a/mods/files/picture.php
++++ b/mods/files/picture.php
+@@ -4,8 +4,11 @@
+ 
+ $cs_lang = cs_translate('files');
+ $cs_option = cs_sql_option(__FILE__,'files');
+-$cs_files_id = empty($_REQUEST['where']) ? $_GET['id'] : $_REQUEST['where'];
+-settype($cs_file_id,'integer');
++$cs_get = cs_get('id,where,delete');
++$cs_post = cs_post('where');
++$cs_files_id = empty($cs_get['where']) ? (empty($cs_get['id']) ? 0 : $cs_get['id']) : $cs_get['where'];
++if(!empty($cs_post['where']))
++  $cs_files_id = $cs_post['where'];
+ 
+ $files_gl = cs_files();
+ 
+@@ -17,6 +20,9 @@ $img_max['size'] = $cs_option['max_size'];
+ $img_filetypes = array('gif','jpg','png');
+ 
+ $file = cs_sql_select(__FILE__,'files','files_previews',"files_id = '" . $cs_files_id . "'");
++if(empty($file))
++  cs_redirect($cs_lang['del_false'],'files','manage');
++
+ $file_string = $file['files_previews'];
+ $file_pics = empty($file_string) ? array() : explode("\n",$file_string);
+ $file_next = count($file_pics) + 1;
+@@ -25,7 +31,10 @@ $error = 0;
+ $message = '';
+ 
+ if(!empty($_GET['delete'])) {
+-  $target = $_GET['delete'] - 1;
++  $target = $cs_get['delete'] - 1;
++  if(!isset($file_pics[$target]))
++    cs_redirect($cs_lang['del_false'],'files','picture','id=' . $cs_files_id);
++
+   cs_unlink('files', 'picture-' . $file_pics[$target]);
+   cs_unlink('files', 'thumb-' . $file_pics[$target]);
+   $file_pics[$target] = FALSE;
+diff --git a/mods/files/view.php b/mods/files/view.php
+index 3cad1fc..89b7672 100644
+--- a/mods/files/view.php
++++ b/mods/files/view.php
+@@ -121,12 +121,19 @@ $temp = explode("-----", $files_mirror);
+ $temp_loop = count($temp);
+ 
+ if(isset($_REQUEST['target']) AND is_array($cs_file)) {
++  $target = (int) $_REQUEST['target'];
+   $files_cells = array('files_count');
+   $files_save = array(++$cs_file['files_count']);
+   cs_sql_update(__FILE__,'files',$files_cells,$files_save,$file_id,0,0);
+-  $temp_a = explode("\n", $temp[$_REQUEST['target']]);
++  if(!isset($temp[$target]))
++    cs_redirect(NULL, 'files', 'view', 'where=' . $file_id);
++  $temp_a = explode("\n", $temp[$target]);
+   $select_mirrow = $temp_a['1'];
+-  header("Location: ".$select_mirrow."");
++  $select_mirrow = trim($select_mirrow);
++  if(preg_match("=^https?://[^\r\n]+$=i", $select_mirrow))
++    header("Location: ".$select_mirrow);
++  else
++    cs_redirect(NULL, 'files', 'view', 'where=' . $file_id);
+ } 
+ 
+ require_once 'mods/clansphere/filetype.php';
+diff --git a/mods/gallery/com_view.php b/mods/gallery/com_view.php
+index f4b5682..c043b89 100644
+--- a/mods/gallery/com_view.php
++++ b/mods/gallery/com_view.php
+@@ -36,10 +36,16 @@ if(empty($gallery_loop)) {
+ 
+ } else {
+ 
+-    $select = 'folders_id, folders_name, folders_picture, folders_text, sub_id, folders_advanced';
++    $select = 'folders_id, folders_name, folders_picture, folders_text, sub_id, folders_advanced, folders_access';
+     $where = "folders_mod = 'gallery' AND folders_id = " . (int)$cs_gallery['folders_id'];
+     $cs_folders = cs_sql_select(__FILE__,'folders',$select,$where);
+ 
++    if(empty($cs_folders) OR $cs_folders['folders_access'] > $account['access_gallery']) {
++        $data['head']['error'] = cs_link($cs_lang['mod_name'],'gallery','list') .' - ' . $cs_lang['head_view'];
++        echo cs_subtemplate(__FILE__,$data,'gallery','error');
++        return;
++    }
++
+     $advanced = empty($cs_folders['folders_advanced']) ? '0,0,0,0' : $cs_folders['folders_advanced'];
+     $advanced = explode(",",$advanced);
+ 
+diff --git a/mods/gallery/download.php b/mods/gallery/download.php
+index 3e6aa7b..e8fe992 100644
+--- a/mods/gallery/download.php
++++ b/mods/gallery/download.php
+@@ -30,12 +30,7 @@ class zipfile
+   {
+     $name   = str_replace('\\', '/', $name);
+ 
+-    $dtime  = dechex($this->unix2DosTime($time));
+-    $hexdtime = '\x' . $dtime[6] . $dtime[7]
+-          . '\x' . $dtime[4] . $dtime[5]
+-          . '\x' . $dtime[2] . $dtime[3]
+-          . '\x' . $dtime[0] . $dtime[1];
+-    eval('$hexdtime = "' . $hexdtime . '";');
++    $hexdtime = pack('V', $this->unix2DosTime($time));
+ 
+     $fr  = "\x50\x4b\x03\x04";
+     $fr .= "\x14\x00";
+@@ -107,8 +102,8 @@ if (function_exists('gzcompress'))
+     {
+       die('Error: Invalid arguments passed');
+     }
+-    $file = '../../uploads/gallery/pics/' . $name;
+-    if(file_exists($file))
++    $file = cs_safe_path('../../uploads/gallery/pics', $name, 1);
++    if($file !== false AND file_exists($file))
+     {
+       $handle = fopen ($file, "rb");
+       $contents = fread ($handle, filesize ($file));
+@@ -117,13 +112,9 @@ if (function_exists('gzcompress'))
+       $zipfile -> addFile($contents, $name);
+       $dump_buffer = $zipfile -> file();
+       $zipfilename = 'images.zip';
+-      $handle = fopen ($zipfilename, 'wb');
+-      fwrite($handle,$dump_buffer);
+-      fclose ($handle);
+       header("Content-type: application/octet-stream");
+       header("Content-disposition: attachment; filename=$zipfilename");
+-      readfile($zipfilename);
+-      unlink($zipfilename);
++      echo $dump_buffer;
+     }
+     else
+     {
+diff --git a/mods/gallery/image.php b/mods/gallery/image.php
+index 24f0cb1..c7e213b 100644
+--- a/mods/gallery/image.php
++++ b/mods/gallery/image.php
+@@ -15,25 +15,163 @@ chdir('mods/gallery/');
+ 
+ global $cs_main, $account;
+ 
++function cs_gallery_image_path($base, $name) {
++
++  $safe_name = cs_safe_filename($name);
++  if($safe_name === false)
++    die(cs_error_internal(0, 'Invalid image name'));
++
++  $path = cs_safe_path($base, $safe_name, 1);
++  if($path === false OR !is_file($path))
++    die(cs_error_internal(0, 'Image not found'));
++
++  return $path;
++}
++
++function cs_gallery_image_size($size, $default = 500, $max = 2000) {
++
++  $size = (int) $size;
++  if($size < 1)
++    return $default;
++  return $size > $max ? $max : $size;
++}
++
++function cs_gallery_image_rotate($rotate) {
++
++  $rotate = (int) $rotate;
++  return ($rotate < -360 OR $rotate > 360) ? 0 : $rotate;
++}
++
++function cs_gallery_user_image($id) {
++
++  global $account;
++
++  $id = (int) $id;
++  if($id < 1)
++    die(cs_error_internal(0, 'Image not found'));
++
++  $from = 'usersgallery ugy INNER JOIN {pre}_folders fol ON ugy.folders_id = fol.folders_id';
++  $select  = 'ugy.usersgallery_name AS usersgallery_name, ugy.usersgallery_time AS usersgallery_time, ';
++  $select .= 'ugy.usersgallery_count AS usersgallery_count, ';
++  $select .= 'ugy.usersgallery_count_downloads AS usersgallery_count_downloads, ';
++  $select .= 'ugy.usersgallery_status AS usersgallery_status, ';
++  $select .= 'ugy.usersgallery_access AS usersgallery_access, ugy.users_id AS users_id, ';
++  $select .= 'fol.folders_access AS folders_access';
++  $where = "ugy.usersgallery_id = " . $id . " AND fol.folders_mod = 'usersgallery'";
++  $cs_gallery = cs_sql_select(__FILE__,$from,$select,$where);
++
++  if(empty($cs_gallery))
++    die(cs_error_internal(0, 'Image not found'));
++
++  $owner = !empty($account['users_id']) AND $account['users_id'] == $cs_gallery['users_id'];
++  $admin = $account['access_usersgallery'] >= 4;
++  $visible = !empty($cs_gallery['usersgallery_status'])
++          AND $account['access_usersgallery'] >= $cs_gallery['usersgallery_access']
++          AND $account['access_usersgallery'] >= $cs_gallery['folders_access'];
++
++  if(empty($owner) AND empty($admin) AND empty($visible))
++    die(cs_error_internal(0, 'Access denied'));
++
++  return $cs_gallery;
++}
++
++function cs_gallery_board_image($name) {
++
++  global $account;
++
++  $safe_name = cs_safe_filename($name);
++  if($safe_name === false)
++    die(cs_error_internal(0, 'Image not found'));
++
++  $ext = strtolower(substr(strrchr($safe_name, '.'), 1));
++  $allowed = array('gif' => 1, 'jpg' => 1, 'jpeg' => 1, 'png' => 1);
++  if(empty($allowed[$ext]))
++    die(cs_error_internal(0, 'Image not found'));
++
++  $tables  = 'boardfiles fil INNER JOIN {pre}_threads thr ON thr.threads_id = fil.threads_id ';
++  $tables .= 'INNER JOIN {pre}_board brd ON brd.board_id = thr.board_id ';
++  $tables .= 'LEFT OUTER JOIN {pre}_boardpws bpw ON bpw.board_id = brd.board_id ';
++  $tables .= 'AND bpw.users_id = ' . (int) $account['users_id'];
++  $select  = 'fil.boardfiles_id AS boardfiles_id, fil.boardfiles_name AS boardfiles_name, ';
++  $select .= 'brd.board_access AS board_access, brd.squads_id AS squads_id, ';
++  $select .= 'brd.board_pwd AS board_pwd, bpw.boardpws_id AS boardpws_id';
++
++  if(preg_match('=^([1-9][0-9]*)\.[a-z0-9]+$=i', $safe_name, $match))
++    $where = 'fil.boardfiles_id = ' . (int) $match[1];
++  else
++    $where = "fil.boardfiles_name = '" . cs_sql_escape($safe_name) . "'";
++
++  $cs_file = cs_sql_select(__FILE__,$tables,$select,$where);
++  if(empty($cs_file))
++    die(cs_error_internal(0, 'Image not found'));
++
++  if(!empty($cs_file['squads_id']) AND $account['access_board'] < $cs_file['board_access']) {
++    $sq_where = 'users_id = ' . (int) $account['users_id'] . ' AND squads_id = ' . (int) $cs_file['squads_id'];
++    $check_sq = cs_sql_count(__FILE__,'members',$sq_where);
++    if(empty($check_sq))
++      die(cs_error_internal(0, 'Access denied'));
++  }
++  elseif($account['access_board'] < $cs_file['board_access']) {
++    die(cs_error_internal(0, 'Access denied'));
++  }
++
++  if(!empty($cs_file['board_pwd']) AND empty($cs_file['boardpws_id']))
++    die(cs_error_internal(0, 'Access denied'));
++
++  $file = $cs_file['boardfiles_name'];
++  $file_ext = substr(strrchr($file, '.'), 1);
++  if(empty($allowed[strtolower($file_ext)]))
++    die(cs_error_internal(0, 'Image not found'));
++
++  $stored_name = $cs_file['boardfiles_id'] . '.' . $file_ext;
++  $path = cs_safe_path("../../uploads/board/files", $stored_name, 1);
++  if($path === false OR !is_file($path)) {
++    $legacy_name = cs_safe_filename($file);
++    $path = $legacy_name === false ? false : cs_safe_path("../../uploads/board/files", $legacy_name, 1);
++  }
++
++  if($path === false OR !is_file($path))
++    die(cs_error_internal(0, 'Image not found'));
++
++  return $path;
++}
++
+ if(!empty($_REQUEST['pic']) OR !empty($_REQUEST['thumb']))
+ {
+   $options = cs_sql_option(__FILE__, 'gallery');
+   
+   if(!empty($_REQUEST['pic'])) {
+-    $where = $_REQUEST['pic'];
++    $gallery_id = (int) $_REQUEST['pic'];
+   }
+   elseif(!empty($_REQUEST['thumb']))
+   {
+-    $where = $_REQUEST['thumb'];
++    $gallery_id = (int) $_REQUEST['thumb'];
+   }
+-  $from = 'gallery';
+-  $select  = 'gallery_watermark, gallery_watermark_pos, gallery_name, gallery_time, ';
+-  $select .= 'gallery_count, gallery_count_downloads, gallery_access';
+-  $where = "gallery_id = '" . cs_sql_escape($where) . "'";
++  if($gallery_id < 1)
++    die(cs_error_internal(0, 'Image not found'));
++
++  $from = 'gallery gal INNER JOIN {pre}_folders fol ON gal.folders_id = fol.folders_id';
++  $select  = 'gal.gallery_watermark AS gallery_watermark, ';
++  $select .= 'gal.gallery_watermark_pos AS gallery_watermark_pos, ';
++  $select .= 'gal.gallery_name AS gallery_name, gal.gallery_time AS gallery_time, ';
++  $select .= 'gal.gallery_count AS gallery_count, ';
++  $select .= 'gal.gallery_count_downloads AS gallery_count_downloads, ';
++  $select .= 'gal.gallery_access AS gallery_access, gal.gallery_status AS gallery_status, ';
++  $select .= 'gal.users_id AS users_id, fol.folders_access AS folders_access';
++  $where = "gal.gallery_id = '" . $gallery_id . "' AND fol.folders_mod = 'gallery'";
+   $cs_gallery = cs_sql_select(__FILE__,$from,$select,$where);
++  if(empty($cs_gallery))
++    die(cs_error_internal(0, 'Image not found'));
++
+   $gallery_loop = count($cs_gallery);
+   
+-  if ($account['access_gallery'] < $cs_gallery['gallery_access']) {
++  $owner = !empty($account['users_id']) AND $account['users_id'] == $cs_gallery['users_id'];
++  $admin = $account['access_gallery'] >= 4;
++  $visible = !empty($cs_gallery['gallery_status'])
++          AND $account['access_gallery'] >= $cs_gallery['gallery_access']
++          AND $account['access_gallery'] >= $cs_gallery['folders_access'];
++
++  if (empty($owner) AND empty($admin) AND empty($visible)) {
+     die(cs_error_internal(0, 'Access denied'));
+   }
+ 
+@@ -51,15 +189,11 @@ if(!empty($_REQUEST['pic']) OR !empty($_REQUEST['thumb']))
+     $gallery_count = $gallery_count + 1;
+     $gallery_cells = array('gallery_count');
+     $gallery_save = array($gallery_count);
+-    cs_sql_update(__FILE__,'gallery',$gallery_cells,$gallery_save,$_REQUEST['pic']);
++    cs_sql_update(__FILE__,'gallery',$gallery_cells,$gallery_save,$gallery_id);
+   }
+ }
+ if(!empty($_REQUEST['usersthumb'])) {
+-  $where = $_REQUEST['usersthumb'];
+-  $from = 'usersgallery';
+-  $select = 'usersgallery_name, usersgallery_time, usersgallery_count, usersgallery_count_downloads';
+-  $where = "usersgallery_id = '" . cs_sql_escape($where) . "'";
+-  $cs_gallery = cs_sql_select(__FILE__,$from,$select,$where);
++  $cs_gallery = cs_gallery_user_image($_REQUEST['usersthumb']);
+   $gallery_loop = count($cs_gallery);
+ 
+   $name = $cs_gallery['usersgallery_name'];
+@@ -69,11 +203,7 @@ if(!empty($_REQUEST['usersthumb'])) {
+ }
+ 
+ if(!empty($_REQUEST['userspic'])) {
+-  $where = $_REQUEST['userspic'];
+-  $from = 'usersgallery';
+-  $select = 'usersgallery_name, usersgallery_time, usersgallery_count, usersgallery_count_downloads';
+-  $where = "usersgallery_id = '" . cs_sql_escape($where) . "'";
+-  $cs_gallery = cs_sql_select(__FILE__,$from,$select,$where);
++  $cs_gallery = cs_gallery_user_image($_REQUEST['userspic']);
+   $gallery_loop = count($cs_gallery);
+ 
+   $name = $cs_gallery['usersgallery_name'];
+@@ -81,10 +211,10 @@ if(!empty($_REQUEST['userspic'])) {
+   $gallery_count = $cs_gallery['usersgallery_count'];
+   $gallery_count_downloads = $cs_gallery['usersgallery_count_downloads'];
+ 
+-  $gallery_count = $gallery_count + 1;
++    $gallery_count = $gallery_count + 1;
+   $gallery_cells = array('usersgallery_count');
+   $gallery_save = array($gallery_count);
+-  cs_sql_update(__FILE__,'usersgallery',$gallery_cells,$gallery_save,$_REQUEST['userspic']);
++  cs_sql_update(__FILE__,'usersgallery',$gallery_cells,$gallery_save,(int) $_REQUEST['userspic']);
+ }
+ 
+ class PictureEngine
+@@ -113,12 +243,14 @@ class PictureEngine
+     Imagejpeg($this->image,null,100);
+   }
+ 
+-  function Dump_down($count)
++  function Dump_down($count, $table = 'gallery', $id = 0)
+   {
++    $table = $table == 'usersgallery' ? 'usersgallery' : 'gallery';
++    $cell = $table == 'usersgallery' ? 'usersgallery_count_downloads' : 'gallery_count_downloads';
+     $gallery_count_downloads = $count + 1;
+-    $gallery_cells = array('gallery_count_downloads');
++    $gallery_cells = array($cell);
+     $gallery_save = array($gallery_count_downloads);
+-    cs_sql_update(__FILE__,'gallery',$gallery_cells,$gallery_save,$_REQUEST['pic']);
++    cs_sql_update(__FILE__,$table,$gallery_cells,$gallery_save,(int) $id);
+ 
+     # disable browser / proxy caching
+     header("Cache-Control: max-age=0, no-cache, no-store, must-revalidate");
+@@ -128,7 +260,7 @@ class PictureEngine
+     header("Accept-Ranges: bytes");
+     header("Content-type: image/jpg");
+     header("Content-Disposition: attachment; filename=image.jpg");
+-    echo @readfile(Imagejpeg($this->image,null,100),"r");
++    Imagejpeg($this->image,null,100);
+     exit;
+   }
+ }
+@@ -231,7 +363,7 @@ class Transformation extends PictureEngine
+ 
+ if(extension_loaded('gd') AND isset($_REQUEST['pic']))
+ {
+-  $pic = "../../uploads/gallery/pics/" . $name;
++  $pic = cs_gallery_image_path("../../uploads/gallery/pics", $name);
+   $img_size = getimagesize($pic);
+   switch($img_size[2])
+   {
+@@ -249,21 +381,22 @@ if(extension_loaded('gd') AND isset($_REQUEST['pic']))
+ 
+   if(!empty($cs_gallery['gallery_watermark']))
+   {
+-    $im->Transformation->watermark('../../uploads/categories/' . $cs_gallery['gallery_watermark'],$transparenz,$cs_gallery['gallery_watermark'],$position);
++    $watermark = cs_gallery_image_path('../../uploads/categories', $cs_gallery['gallery_watermark']);
++    $im->Transformation->watermark($watermark,$transparenz,$cs_gallery['gallery_watermark'],$position);
+   }
+   if(isset($_REQUEST['size']))
+   {
+-    $size = $_REQUEST['size'];
++    $size = cs_gallery_image_size($_REQUEST['size']);
+     $im->Transformation->Scale($size);
+   }
+   if(isset($_REQUEST['rotate']))
+   {
+-    $rotate=$_REQUEST['rotate'];
++    $rotate = cs_gallery_image_rotate($_REQUEST['rotate']);
+     $im->Transformation->rotate($rotate);
+   }
+   if(isset($_REQUEST['down']))
+   {
+-    $im->dump_down($gallery_count_downloads);
++    $im->dump_down($gallery_count_downloads, 'gallery', (int) $_REQUEST['pic']);
+   }
+   else
+   {
+@@ -273,7 +406,7 @@ if(extension_loaded('gd') AND isset($_REQUEST['pic']))
+ 
+ if(extension_loaded('gd') AND isset($_REQUEST['userspic']))
+ {
+-  $pic = "../../uploads/usersgallery/pics/" . $name;
++  $pic = cs_gallery_image_path("../../uploads/usersgallery/pics", $name);
+   $img_size = getimagesize($pic);
+   switch($img_size[2])
+   {
+@@ -288,23 +421,24 @@ if(extension_loaded('gd') AND isset($_REQUEST['userspic']))
+     break;
+     }
+ 
+-  if(!empty($cs_gallery['gallery_watermark']))
++  if(isset($cs_gallery['gallery_watermark']) AND !empty($cs_gallery['gallery_watermark']))
+   {
+-    $im->Transformation->watermark('../../uploads/categories/' . $cs_gallery['gallery_watermark'],$transparenz,$cs_gallery['gallery_watermark'],$position);
++    $watermark = cs_gallery_image_path('../../uploads/categories', $cs_gallery['gallery_watermark']);
++    $im->Transformation->watermark($watermark,$transparenz,$cs_gallery['gallery_watermark'],$position);
+   }
+   if(isset($_REQUEST['size']))
+   {
+-    $size = $_REQUEST['size'];
++    $size = cs_gallery_image_size($_REQUEST['size']);
+     $im->Transformation->Scale($size);
+   }
+   if(isset($_REQUEST['rotate']))
+   {
+-    $rotate=$_REQUEST['rotate'];
++    $rotate = cs_gallery_image_rotate($_REQUEST['rotate']);
+     $im->Transformation->rotate($rotate);
+   }
+   if(isset($_REQUEST['down']))
+   {
+-    $im->dump_down($gallery_count_downloads);
++    $im->dump_down($gallery_count_downloads, 'usersgallery', (int) $_REQUEST['userspic']);
+   }
+   else
+   {
+@@ -314,7 +448,7 @@ if(extension_loaded('gd') AND isset($_REQUEST['userspic']))
+ 
+ if(!extension_loaded('gd') AND isset($_REQUEST['pic']))
+ {
+-  $pic = "../../uploads/gallery/pics/" . $name;
++  $pic = cs_gallery_image_path("../../uploads/gallery/pics", $name);
+   $data = fopen($pic,'r');
+   echo fread($data, filesize($pic));
+ }
+@@ -322,7 +456,7 @@ if(!extension_loaded('gd') AND isset($_REQUEST['pic']))
+ if(extension_loaded('gd') AND isset($_REQUEST['thumb']))
+ {
+   $thumb_file = $name;
+-  $thumb = "../../uploads/gallery/thumbs/Thumb_" . $thumb_file;
++  $thumb = cs_gallery_image_path("../../uploads/gallery/thumbs", 'Thumb_' . $thumb_file);
+   $img_size = getimagesize($thumb);
+   switch($img_size[2])
+   {
+@@ -348,15 +482,18 @@ if(extension_loaded('gd') AND isset($_REQUEST['thumb']))
+ if(!extension_loaded('gd') AND isset($_REQUEST['thumb']))
+ {
+   $thumb_file = $name;
+-  $thumb = "../../uploads/gallery/thumbs/Thumb_" . $thumb_file;
++  $thumb = cs_gallery_image_path("../../uploads/gallery/thumbs", 'Thumb_' . $thumb_file);
+   $data = fopen($thumb,'r');
+   echo fread($data, filesize($thumb));
+ }
+ 
+ if(extension_loaded('gd') AND isset($_REQUEST['picname']))
+ {
+-    $pic_name = $_REQUEST['picname'];
+-  $pic = "../../uploads/gallery/pics/" . $pic_name;
++  if($account['access_gallery'] < 3)
++    die(cs_error_internal(0, 'Access denied'));
++
++  $pic_name = $_REQUEST['picname'];
++  $pic = cs_gallery_image_path("../../uploads/gallery/pics", $pic_name);
+   $img_size = getimagesize($pic);
+   switch($img_size[2])
+   {
+@@ -379,8 +516,7 @@ if(extension_loaded('gd') AND isset($_REQUEST['picname']))
+ }
+ if(extension_loaded('gd') AND isset($_REQUEST['boardpic']))
+ {
+-    $pic_name = $_REQUEST['boardpic'];
+-  $pic = "../../uploads/board/files/" . $pic_name;
++  $pic = cs_gallery_board_image($_REQUEST['boardpic']);
+   $img_size = getimagesize($pic);
+   switch($img_size[2])
+   {
+@@ -408,7 +544,7 @@ if(extension_loaded('gd') AND isset($_REQUEST['boardpic']))
+ if(extension_loaded('gd') AND isset($_REQUEST['usersthumb']))
+ {
+   $thumb_file = $name;
+-  $thumb = "../../uploads/usersgallery/thumbs/Thumb_" . $thumb_file;
++  $thumb = cs_gallery_image_path("../../uploads/usersgallery/thumbs", 'Thumb_' . $thumb_file);
+   $img_size = getimagesize($thumb);
+   switch($img_size[2])
+   {
+diff --git a/mods/gallery/manage_advanced.php b/mods/gallery/manage_advanced.php
+index e058d8f..8034c6a 100644
+--- a/mods/gallery/manage_advanced.php
++++ b/mods/gallery/manage_advanced.php
+@@ -67,12 +67,7 @@ if(isset($_POST['submit']))
+                 $count = '0';
+                 while($count < '1')
+                 {
+-                  $hash = '';
+-                  $pattern = "1234567890abcdefghijklmnopqrstuvwxyz";
+-                  for($i=0;$i<10;$i++)
+-                  {
+-                    $hash .= $pattern{rand(0,35)};
+-                  }
++                  $hash = cs_random_string(20);
+                   $filename = $hash . '.' . $ext;
+                   if(!file_exists($filename))
+                   {
+@@ -257,7 +252,7 @@ if(isset($_POST['submit']))
+           $search = cs_sql_count(__FILE__,'gallery',$where);
+           if(!empty($search))
+           {
+-            $query = "DELETE FROM {pre}_gallery WHERE gallery_name='$thumb'";
++            $query = "DELETE FROM {pre}_gallery WHERE gallery_name='" . cs_sql_escape($thumb) . "'";
+             cs_sql_query(__FILE__,$query);
+           }
+           $msg = $cs_lang['deltrue'];
+diff --git a/mods/install/complete.php b/mods/install/complete.php
+index 7e5aff4..de13069 100644
+--- a/mods/install/complete.php
++++ b/mods/install/complete.php
+@@ -16,7 +16,7 @@ function cs_set_env($dir) {
+   while (false !== ($filename = readdir($dh))) {
+     if($filename != '.' AND $filename != '..') {
+       $nextcheck = $dir . $filename;
+-      @chmod($dir,0777) OR $error++;
++      @chmod($nextcheck, is_dir($nextcheck) ? 0755 : 0644) OR $error++;
+     }
+   }
+   closedir($dh);
+diff --git a/mods/install/settings.php b/mods/install/settings.php
+index 05b0d0e..5dd0a71 100644
+--- a/mods/install/settings.php
++++ b/mods/install/settings.php
+@@ -57,17 +57,17 @@ if(empty($setup_exists) AND (isset($_POST['create']) OR isset($_POST['view'])))
+   }
+   if(empty($error)) {
+ 
+-    $setup_php = "<?php\n\n\$cs_db['hash'] = '" . $cs_db['hash'] . "'; # don't change!\n";
+-    $setup_php .= "\$cs_db['type'] = '" . $cs_db['type'] . "';\n";
+-    $setup_php .= "\$cs_db['subtype'] = '" . $cs_db['subtype'] . "';\n";
+-    $setup_php .= "\$cs_db['place'] = '" . $cs_db['place'] . "';\n";
+-    $setup_php .= "\$cs_db['user'] = '" . $cs_db['user'] . "';\n";
+-    $setup_php .= "\$cs_db['pwd'] = '" . $cs_db['pwd'] . "';\n";
+-    $setup_php .= "\$cs_db['name'] = '" . $cs_db['name'] . "';\n";
+-    $setup_php .= "\$cs_db['prefix'] = '" . $cs_db['prefix'] . "';\n\n";
+-    $setup_php .= "\$cs_logs['save_actions'] = " . $log['save_actions'] . ";\n";
+-    $setup_php .= "\$cs_logs['save_errors'] = " . $log['save_errors'] . ";\n\n";
+-    $setup_php .= "\$cs_main['charset'] = '" . $cs_main['charset'] . "';";
++    $setup_php = "<?php\n\n\$cs_db['hash'] = " . var_export($cs_db['hash'], true) . "; # don't change!\n";
++    $setup_php .= "\$cs_db['type'] = " . var_export($cs_db['type'], true) . ";\n";
++    $setup_php .= "\$cs_db['subtype'] = " . var_export($cs_db['subtype'], true) . ";\n";
++    $setup_php .= "\$cs_db['place'] = " . var_export($cs_db['place'], true) . ";\n";
++    $setup_php .= "\$cs_db['user'] = " . var_export($cs_db['user'], true) . ";\n";
++    $setup_php .= "\$cs_db['pwd'] = " . var_export($cs_db['pwd'], true) . ";\n";
++    $setup_php .= "\$cs_db['name'] = " . var_export($cs_db['name'], true) . ";\n";
++    $setup_php .= "\$cs_db['prefix'] = " . var_export($cs_db['prefix'], true) . ";\n\n";
++    $setup_php .= "\$cs_logs['save_actions'] = " . (int) $log['save_actions'] . ";\n";
++    $setup_php .= "\$cs_logs['save_errors'] = " . (int) $log['save_errors'] . ";\n\n";
++    $setup_php .= "\$cs_main['charset'] = " . var_export($cs_main['charset'], true) . ";";
+ 
+     if(isset($_POST['create'])) {
+       $flerr = 0;
+diff --git a/mods/jquery/csp_ajax.js b/mods/jquery/csp_ajax.js
+index f3977ff..0eb4e5d 100644
+--- a/mods/jquery/csp_ajax.js
++++ b/mods/jquery/csp_ajax.js
+@@ -43,6 +43,12 @@ var Clansphere = {
+     },
+     
+     active_upload_count: 0,
++
++    escapeHtml: function(value) {
++      return String(value).replace(/[&<>"']/g, function(chr) {
++        return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'}[chr];
++      });
++    },
+     
+     initialize: function(modRewrite, basepath, reloadInterval) {
+       
+@@ -109,7 +115,6 @@ var Clansphere = {
+         
+         Clansphere.ajax.debug(response);
+       
+-        if (response.scripts) eval(response.scripts);
+         Clansphere.ajax.switchNavlistRefresher(true);
+ 
+         
+@@ -401,10 +406,10 @@ var Clansphere = {
+       
+       var d = '',
+           debugInfos = [
+-            'Clansphere.ajax.regex',
+-            'Clansphere.ajax.index',
+-            'Clansphere.ajax.basePath',
+-            'Clansphere.ajax.baseFile'
++            ['Clansphere.ajax.regex', Clansphere.ajax.regex],
++            ['Clansphere.ajax.index', Clansphere.ajax.index],
++            ['Clansphere.ajax.basePath', Clansphere.ajax.basePath],
++            ['Clansphere.ajax.baseFile', Clansphere.ajax.baseFile]
+           ];
+         
+       d += '<a href="#" onclick="$(this).parent().remove();return false;">Close</a>';  
+@@ -412,7 +417,7 @@ var Clansphere = {
+       d += '<h2>Ajax Debug Information</h2>';
+       
+       for(dbg in debugInfos) {
+-        d += '<p><b>' + debugInfos[dbg] + ':</b><br/>' + eval(debugInfos[dbg]) + '</p>';
++        d += '<p><b>' + Clansphere.ajax.escapeHtml(debugInfos[dbg][0]) + ':</b><br/>' + Clansphere.ajax.escapeHtml(debugInfos[dbg][1]) + '</p>';
+       }
+             
+       if(box.size()==0)
+@@ -426,7 +431,12 @@ var Clansphere = {
+         Clansphere.ajax.remove_complete(upload.name);
+         alert(Clansphere.ajax.options.uploadFailedMessage);
+       } else {
+-        document.getElementById('upload_' + upload.name).innerHTML = "<a href=\"javascript:Clansphere.ajax.remove_file('" + upload.name + "');\">" + Clansphere.ajax.options.labelUploadDelete  + "</a> | " + upload.original_name + ' (' + upload.size + ')';
++        var uploadElement = $('#upload_' + upload.name).empty();
++        $('<a/>', {href: '#'}).text(Clansphere.ajax.options.labelUploadDelete).click(function(e) {
++          e.preventDefault();
++          Clansphere.ajax.remove_file(upload.name);
++        }).appendTo(uploadElement);
++        uploadElement.append(document.createTextNode(' | ' + upload.original_name + ' (' + upload.size + ')'));
+       }
+       Clansphere.ajax.active_upload_count -= 1;
+     },
+diff --git a/mods/links/create.php b/mods/links/create.php
+index 8df77f8..ac24168 100644
+--- a/mods/links/create.php
++++ b/mods/links/create.php
+@@ -29,8 +29,8 @@ $cs_links['links_sponsor'] = '';
+ if(isset($_POST['submit'])) {
+ 
+   $cs_links['links_name'] = $_POST['links_name'];
+-  $cs_links['categories_id'] = empty($_POST['categories_name']) ? $_POST['categories_id'] : cs_categories_create('links', $_POST['categories_name']);
+-  $cs_links['links_url'] = $_POST['links_url'];
++  $cs_links['categories_id'] = empty($_POST['categories_name']) ? (int) $_POST['categories_id'] : cs_categories_create('links', $_POST['categories_name']);
++  $cs_links['links_url'] = cs_clean_url_part($_POST['links_url']);
+   $cs_links['links_stats'] = $_POST['links_stats'];
+   $cs_links['links_info'] = empty($cs_main['rte_html']) ? $_POST['links_info'] : cs_abcode_inhtml($_POST['links_info'], 'add');
+   $cs_links['links_sponsor'] = isset($_POST['links_sponsor']) ? $_POST['links_sponsor'] : 0;
+@@ -39,9 +39,9 @@ if(isset($_POST['submit'])) {
+   
+   //check name
+   if(!empty($cs_links['links_name'])) {
+-    $check_name = cs_sql_count(__FILE__,'links',"links_name = '" . $cs_links['links_name'] ."'");
++    $check_name = cs_sql_count(__FILE__,'links',"links_name = '" . cs_sql_escape($cs_links['links_name']) ."'");
+     if(!empty($check_name))
+-      $error .= sprintf($cs_lang['name_exists'],$cs_links['links_name']) . cs_html_br(1);
++      $error .= sprintf($cs_lang['name_exists'],cs_secure($cs_links['links_name'])) . cs_html_br(1);
+   } else {
+     $error .= $cs_lang['no_name'] . cs_html_br(1);
+   }
+@@ -51,12 +51,12 @@ if(isset($_POST['submit'])) {
+ 
+   //check url
+   if(!empty($cs_links['links_url'])) {
+-    $where = "links_url = '" . $cs_links['links_url'] ."'";
++    $where = "links_url = '" . cs_sql_escape($cs_links['links_url']) ."'";
+     $check_url = cs_sql_count(__FILE__,'links',$where);
+     if(!empty($check_url)) {
+       $link_exists = cs_sql_select(__FILE__,'links','links_name',$where);
+-      $url = cs_html_link($cs_links['links_url'],$cs_links['links_url']);
+-      $error .= sprintf($cs_lang['url_exists'],$link_exists['links_name'],$url) . cs_html_br(1);
++      $url = cs_html_link('http://' . $cs_links['links_url'],cs_secure($cs_links['links_url']));
++      $error .= sprintf($cs_lang['url_exists'],cs_secure($link_exists['links_name']),$url) . cs_html_br(1);
+     }
+   } else {
+     $error .= $cs_lang['no_url'] . cs_html_br(1);
+@@ -102,6 +102,9 @@ elseif(!empty($error))
+ if(!empty($error) OR !isset($_POST['submit'])) {
+ 
+   $data['data'] = $cs_links;
++  $data['data']['links_name'] = cs_secure($cs_links['links_name']);
++  $data['data']['links_url'] = cs_secure($cs_links['links_url']);
++  $data['data']['links_info'] = cs_secure($cs_links['links_info']);
+   $data['cat']['dropdown'] = cs_categories_dropdown('links',$cs_links['categories_id']);
+ 
+   $linksstat[0]['links_stats'] = 'on';
+diff --git a/mods/links/edit.php b/mods/links/edit.php
+index 414e421..fe8c493 100644
+--- a/mods/links/edit.php
++++ b/mods/links/edit.php
+@@ -32,8 +32,8 @@ $cs_links = cs_sql_select(__FILE__,'links',$select,"links_id = '" . $links_id .
+ if(isset($_POST['submit'])) {
+ 
+   $cs_links['links_name'] = $_POST['links_name'];
+-  $cs_links['categories_id'] = empty($_POST['categories_name']) ? $_POST['categories_id'] : cs_categories_create('links', $_POST['categories_name']);
+-  $cs_links['links_url'] = $_POST['links_url'];
++  $cs_links['categories_id'] = empty($_POST['categories_name']) ? (int) $_POST['categories_id'] : cs_categories_create('links', $_POST['categories_name']);
++  $cs_links['links_url'] = cs_clean_url_part($_POST['links_url']);
+   $cs_links['links_stats'] = $_POST['links_stats'];
+   $cs_links['links_info'] = empty($cs_main['rte_html']) ? $_POST['links_info'] : cs_abcode_inhtml($_POST['links_info'], 'add');
+   $cs_links['links_sponsor'] = isset($_POST['links_sponsor']) ? $_POST['links_sponsor'] : 0;
+@@ -43,10 +43,10 @@ if(isset($_POST['submit'])) {
+   
+   //check name
+   if(!empty($cs_links['links_name'])) {
+-    $where = "links_name = '" . $cs_links['links_name'] ."' AND links_id != '" . $links_id . "'";
++    $where = "links_name = '" . cs_sql_escape($cs_links['links_name']) ."' AND links_id != '" . (int) $links_id . "'";
+     $check_name = cs_sql_count(__FILE__,'links',$where);
+     if(!empty($check_name))
+-      $error .= sprintf($cs_lang['name_exists'],$cs_links['links_name']) . cs_html_br(1);
++      $error .= sprintf($cs_lang['name_exists'],cs_secure($cs_links['links_name'])) . cs_html_br(1);
+   } else {
+     $error .= $cs_lang['no_name'] . cs_html_br(1);
+   }
+@@ -56,12 +56,12 @@ if(isset($_POST['submit'])) {
+ 
+   //check url
+   if(!empty($cs_links['links_url'])) {
+-    $where = "links_url = '" . $cs_links['links_url'] . "' AND links_id != '" . $links_id . "'";
++    $where = "links_url = '" . cs_sql_escape($cs_links['links_url']) . "' AND links_id != '" . (int) $links_id . "'";
+     $check_url = cs_sql_count(__FILE__,'links',$where);
+     if(!empty($check_url)) {
+       $link_exists = cs_sql_select(__FILE__,'links','links_name',$where);
+-      $url = cs_html_link($cs_links['links_url'],$cs_links['links_url']);
+-      $error .= sprintf($cs_lang['url_exists'],$link_exists['links_name'],$url) . cs_html_br(1);
++      $url = cs_html_link('http://' . $cs_links['links_url'],cs_secure($cs_links['links_url']));
++      $error .= sprintf($cs_lang['url_exists'],cs_secure($link_exists['links_name']),$url) . cs_html_br(1);
+     }
+   } else {
+     $error .= $cs_lang['no_url'] . cs_html_br(1);
+@@ -107,6 +107,9 @@ elseif(!empty($error))
+ if(!empty($error) OR !isset($_POST['submit'])) {
+ 
+   $data['data'] = $cs_links;
++  $data['data']['links_name'] = cs_secure($cs_links['links_name']);
++  $data['data']['links_url'] = cs_secure($cs_links['links_url']);
++  $data['data']['links_info'] = cs_secure($cs_links['links_info']);
+   $data['cat']['dropdown'] = cs_categories_dropdown('links',$cs_links['categories_id']);
+ 
+   $linksstat[0]['links_stats'] = 'on';
+diff --git a/mods/links/listcat.php b/mods/links/listcat.php
+index cb38944..271e7a7 100644
+--- a/mods/links/listcat.php
++++ b/mods/links/listcat.php
+@@ -16,8 +16,9 @@ if (!empty($cs_post['sort']))  $sort = $cs_post['sort'];
+ 
+ $cs_sort[1] = 'links_name DESC';
+ $cs_sort[2] = 'links_name ASC';
++$sort = isset($cs_sort[$sort]) ? $sort : 1;
+ $order = $cs_sort[$sort];
+-$where = !empty($categories_id) ? "categories_id = '" . $categories_id . "'" : 0;
++$where = !empty($categories_id) ? "categories_id = '" . (int) $categories_id . "'" : 0;
+ $links_count = cs_sql_count(__FILE__,'links',$where);
+ 
+ if (empty($categories_id)){
+@@ -41,8 +42,9 @@ $links_loop = count($data['links']);
+ for($run=0; $run<$links_loop; $run++) {
+ 
+   $data['links'][$run]['name'] = cs_secure($data['links'][$run]['links_name']);
+-  $data['links'][$run]['url'] = $data['links'][$run]['links_url'];
+-  $data['links'][$run]['url_short'] = cs_substr($data['links'][$run]['links_url'],0,30);
++  $link_url = cs_clean_url_part($data['links'][$run]['links_url']);
++  $data['links'][$run]['url'] = cs_secure($link_url);
++  $data['links'][$run]['url_short'] = cs_secure(cs_substr($link_url,0,30));
+ 
+   if($data['links'][$run]['links_stats'] == 'on') {
+     $data['links'][$run]['color'] = 'lime';
+diff --git a/mods/links/manage.php b/mods/links/manage.php
+index 1745900..0cf72fc 100644
+--- a/mods/links/manage.php
++++ b/mods/links/manage.php
+@@ -18,8 +18,9 @@ if (!empty($cs_post['sort']))  $sort = $cs_post['sort'];
+ 
+ $cs_sort[1] = 'links_name DESC';
+ $cs_sort[2] = 'links_name ASC';
++$sort = isset($cs_sort[$sort]) ? $sort : 1;
+ $order = $cs_sort[$sort];
+-$where = !empty($categories_id) ? "categories_id = '" . $categories_id . "'" : 0;
++$where = !empty($categories_id) ? "categories_id = '" . (int) $categories_id . "'" : 0;
+ $links_count = cs_sql_count(__FILE__,'links',$where);
+ 
+ $cells = 'categories_id, categories_name';
+@@ -36,7 +37,7 @@ $tables = 'links ln INNER JOIN {pre}_categories cat ON ln.categories_id = cat.ca
+ $cells  = 'ln.links_name AS links_name, ln.links_url AS links_url, ln.links_stats AS links_stats, ';
+ $cells .= 'ln.links_id AS links_id, ln.categories_id AS categories_id, ';
+ $cells .= 'cat.categories_name AS categories_name';
+-$where = empty($categories_id) ? 0 : "ln.categories_id = '" . $categories_id . "'";
++$where = empty($categories_id) ? 0 : "ln.categories_id = '" . (int) $categories_id . "'";
+ $data['links'] = cs_sql_select(__FILE__,$tables,$cells,$where,$order,$start,$account['users_limit']);
+ $links_loop = count($data['links']);
+ 
+@@ -45,8 +46,9 @@ for($run=0; $run<$links_loop; $run++) {
+ 
+   $data['links'][$run]['name'] = cs_secure($data['links'][$run]['links_name']);
+   $data['links'][$run]['cat'] = cs_secure($data['links'][$run]['categories_name']);
+-  $data['links'][$run]['url'] = $data['links'][$run]['links_url'];
+-  $data['links'][$run]['url_short'] = cs_substr($data['links'][$run]['links_url'],0,20);
++  $link_url = cs_clean_url_part($data['links'][$run]['links_url']);
++  $data['links'][$run]['url'] = cs_secure($link_url);
++  $data['links'][$run]['url_short'] = cs_secure(cs_substr($link_url,0,20));
+ 
+   if($data['links'][$run]['links_stats'] == 'on') {
+     $data['links'][$run]['color'] = 'lime';
+diff --git a/mods/links/sponsors.php b/mods/links/sponsors.php
+index 7bf8dac..c8be9e5 100644
+--- a/mods/links/sponsors.php
++++ b/mods/links/sponsors.php
+@@ -16,8 +16,9 @@ for($run = 0; $run < $links_loop; $run++) {
+ 
+   $data['links'][$run]['name'] = cs_secure($data['links'][$run]['links_name']);
+   
+-  $target = 'http://' . $data['links'][$run]['links_url'];
+-  $data['links'][$run]['url_img'] = cs_html_link($target,$data['links'][$run]['links_url']);
++  $link_url = cs_clean_url_part($data['links'][$run]['links_url']);
++  $target = 'http://' . $link_url;
++  $data['links'][$run]['url_img'] = cs_html_link($target,cs_secure($link_url));
+   
+   if(!empty($data['links'][$run]['links_banner'])) {
+     $place = 'uploads/links/' .$data['links'][$run]['links_banner'];
+diff --git a/mods/links/view.php b/mods/links/view.php
+index 930906f..44932df 100644
+--- a/mods/links/view.php
++++ b/mods/links/view.php
+@@ -12,7 +12,7 @@ $select = 'links_name, links_url, links_stats, links_banner, links_info';
+ $cs_links = cs_sql_select(__FILE__,'links',$select,"links_id = '" . $links_id . "'");
+ 
+ $data['links']['name'] = cs_secure($cs_links['links_name']);
+-$data['links']['url'] = $cs_links['links_url'];
++$data['links']['url'] = cs_secure(cs_clean_url_part($cs_links['links_url']));
+ 
+ if($cs_links['links_stats'] == 'on') {
+   $data['links']['color'] = 'lime';
+diff --git a/mods/logs/roots.php b/mods/logs/roots.php
+index 84e9f3c..3ddb410 100644
+--- a/mods/logs/roots.php
++++ b/mods/logs/roots.php
+@@ -35,11 +35,17 @@ else
+   $folder = 'errors';
+ 
+ if(!empty($_REQUEST['down'])) {
+-  $down_url = $cs_main['php_self']['dirname'] . $cs_logs['dir'] . '/' . $folder . '/' . $_REQUEST['down'];
++  $down_file = cs_safe_filename($_REQUEST['down']);
++  if($down_file === false OR substr($down_file, -4) != '.log')
++    cs_redirect(NULL, 'logs', 'roots','where=' . $log_id);
++  $down_url = $cs_main['php_self']['dirname'] . $cs_logs['dir'] . '/' . $folder . '/' . $down_file;
+   header('Location: ' . $down_url);
+ }
+ if(!empty($_REQUEST['del'])) { 
+-  cs_unlink('../' . $cs_logs['dir'] . '/' . $folder, $_REQUEST['del']);
++  $del_file = cs_safe_filename($_REQUEST['del']);
++  $log_file = $del_file === false ? false : cs_safe_path($cs_logs['dir'] . '/' . $folder, $del_file, 1);
++  if($log_file !== false AND substr($del_file, -4) == '.log')
++    unlink($log_file);
+   cs_redirect(NULL, 'logs', 'roots','where=' . $log_id);
+ }
+ $handle = opendir($cs_logs['dir'] . '/' . $folder);  
+diff --git a/mods/medals/user.php b/mods/medals/user.php
+index e99e542..1e59cfc 100644
+--- a/mods/medals/user.php
++++ b/mods/medals/user.php
+@@ -4,7 +4,7 @@ $cs_lang = cs_translate('medals');
+ $data = array();
+ 
+ if(isset($_POST['submit'])) {
+-  $medals_id = $_POST['medals_id'];
++  $medals_id = empty($_POST['medals_id']) ? 0 : (int) $_POST['medals_id'];
+   if(!empty($_POST['users_nick'])) {
+     $users_nick = cs_sql_escape($_POST['users_nick']);
+     $users_id = cs_sql_select(__FILE__,'users','users_id',"users_nick = '$users_nick'",0,0,1);
+@@ -16,27 +16,28 @@ if(isset($_POST['submit'])) {
+   else cs_redirect($cs_lang['user_not_found'], 'medals', 'user', 'where='.$medals_id);
+   }
+ } else {
+-  $medals_id = $_GET['where'];
++  $medals_id = empty($_GET['where']) ? 0 : (int) $_GET['where'];
+ }
+ 
+ if(isset($_GET['delete'])) {
+-  $medalsuser_id = cs_sql_escape($_GET['delete']);
++  $medalsuser_id = (int) $_GET['delete'];
+   cs_sql_delete(__FILE__,'medalsuser',$medalsuser_id);
+   cs_redirect($cs_lang['del_true'], 'medals', 'user', 'where='.$medals_id);
+ }
+ 
+-$start = empty($_GET['start']) ? 0 : $_GET['start'];
++$start = empty($_GET['start']) ? 0 : (int) $_GET['start'];
+ $cs_sort[1] = 'md.medalsuser_date DESC';
+ $cs_sort[2] = 'md.medalsuser_date ASC';
+ $cs_sort[3] = 'usr.users_nick DESC';
+ $cs_sort[4] = 'usr.users_nick ASC';
+-$sort = empty($_GET['sort']) ? 1 : $_GET['sort'];
++$sort = empty($_GET['sort']) ? 1 : (int) $_GET['sort'];
++$sort = isset($cs_sort[$sort]) ? $sort : 1;
+ $order = $cs_sort[$sort];
+ 
+ $tables = 'medalsuser md LEFT JOIN {pre}_users usr ON usr.users_id = md.users_id';
+ $cells  = 'usr.users_nick AS users_nick, md.users_id AS users_id, usr.users_active AS users_active, usr.users_delete AS users_delete, ';
+ $cells .= 'md.medals_id AS medals_id, md.medalsuser_date AS medalsuser_date, md.medalsuser_id AS medalsuser_id';
+-$where = 'medals_id = '.$medals_id.'';
++$where = 'medals_id = ' . $medals_id;
+ 
+ $data['medals_user'] = array();
+ 
+diff --git a/mods/messages/archiv.php b/mods/messages/archiv.php
+index 2c86003..05dfd1e 100644
+--- a/mods/messages/archiv.php
++++ b/mods/messages/archiv.php
+@@ -4,8 +4,8 @@
+ 
+ $cs_lang = cs_translate('messages');
+ 
+-$messages_id = $_REQUEST['id'];
+-settype($messages_id,'integer');
++$cs_get = cs_get('id');
++$messages_id = empty($cs_get['id']) ? 0 : $cs_get['id'];
+ 
+ $messages_form = 1;
+ $error = 0;
+@@ -13,11 +13,14 @@ $error = 0;
+ $users_id = $account['users_id'];
+ $from = 'messages';
+ $select = 'users_id,users_id_to';
+-$where = "messages_id = '" . $messages_id . "'";
++$where = "messages_id = '" . $messages_id . "' AND (users_id = '" . $users_id . "' OR users_id_to = '" . $users_id . "')";
+ $cs_messages = cs_sql_select(__FILE__,$from,$select,$where);
++if(empty($cs_messages))
++  cs_redirect($cs_lang['del_false'],'messages','center');
++
+ $messages_users_id = $cs_messages['users_id'];
+ $messages_users_id_2 = $cs_messages['users_id_to'];
+-$archivbox_count = cs_sql_count(__FILE__,'messages',"users_id = '$users_id' AND messages_archiv_sender = '1' OR users_id_to = '$users_id' AND messages_archiv_receiver = '1'");
++$archivbox_count = cs_sql_count(__FILE__,'messages',"(users_id = '$users_id' AND messages_archiv_sender = '1') OR (users_id_to = '$users_id' AND messages_archiv_receiver = '1')");
+ $cs_messages_option = cs_sql_option(__FILE__,'messages');
+ $max_space = $cs_messages_option['max_space'];
+ 
+diff --git a/mods/messages/multiremove.php b/mods/messages/multiremove.php
+index f194f35..8177da2 100644
+--- a/mods/messages/multiremove.php
++++ b/mods/messages/multiremove.php
+@@ -5,49 +5,60 @@
+ $cs_lang = cs_translate('messages');
+ 
+ $data = array();
+-$messages_id = (int) $_GET['id'];
++$cs_get = cs_get('confirm,cancel');
+ 
+ $outbox = (empty($_GET['outbox']) AND empty($_POST['outbox'])) ? 'inbox' : 'outbox';
+ 
+-if (isset($_GET['confirm'])) {
++if(isset($cs_get['confirm'])) {
+ 
+   $query = $outbox == 'inbox' ? 
+-    'DELETE FROM {pre}_messages WHERE users_id_to = \''.$account['users_id'].'\' AND (' :
+-    'UPDATE {pre}_messages SET messages_show_sender = \'0\' WHERE users_id = \''.$account['users_id'].'\' AND (';
++    'UPDATE {pre}_messages SET messages_show_receiver = \'0\', messages_archiv_receiver = \'0\' WHERE users_id_to = \''.$account['users_id'].'\' AND (' :
++    'UPDATE {pre}_messages SET messages_show_sender = \'0\', messages_archiv_sender = \'0\' WHERE users_id = \''.$account['users_id'].'\' AND (';
+ 
+-  $values = explode('-',$_GET['ids']);
+-  $count_values = count($values);
++  $values = empty($_GET['ids']) ? array() : explode('-',$_GET['ids']);
++  $ids = array();
++  foreach($values AS $value) {
++    $id = (int) $value;
++    if($id > 0)
++      $ids[] = $id;
++  }
++  $count_values = count($ids);
++
++  if(empty($count_values))
++    cs_redirect($cs_lang['no_selection'],'messages',$outbox);
+ 
+   for ($run = 0; $run < $count_values; $run++) {
+-    $id = (int) $values[$run];
+     if ($run != 0)
+       $query .= ' OR ';
+-    $query .= 'messages_id = \'' . $id . '\'';
++    $query .= 'messages_id = \'' . $ids[$run] . '\'';
+   }
+   $query .= ')';
+ 
+   cs_sql_query(__FILE__,$query);
++  cs_sql_query(__FILE__,"DELETE FROM {pre}_messages WHERE messages_show_sender = '0' AND messages_archiv_sender = '0' AND messages_show_receiver = '0' AND messages_archiv_receiver = '0'");
+ 
+   cs_redirect($cs_lang['del_true'],'messages',$outbox);
+ } 
+-elseif (isset($_GET['cancel'])) {
++elseif(isset($cs_get['cancel'])) {
+   cs_redirect($cs_lang['del_false'],'messages',$outbox);
+ }
+ else {
+ 
+   $values = $_POST;
+-  $ids = '';
++  $ids = array();
+   foreach ($values AS $key => $value) {
+     if (strpos($key,'select_') === false)
+       continue;
+-    $ids .= substr($key,7) . '-';
++    $id = (int) substr($key,7);
++    if($id > 0)
++      $ids[] = $id;
+   }
+ 
+   if (empty($ids)) {
+     cs_redirect($cs_lang['no_selection'],'messages',$outbox);
+   }
+   else {
+-    $ids = substr($ids,0,-1);
++    $ids = implode('-',$ids);
+     $addout = $outbox == 'outbox' ? '&amp;outbox=outbox' : '';
+ 
+     $data['content']['head'] = $cs_lang['really_remove_selected'];
+diff --git a/mods/modules/accessedit.php b/mods/modules/accessedit.php
+index 123845f..b9fb2b3 100644
+--- a/mods/modules/accessedit.php
++++ b/mods/modules/accessedit.php
+@@ -8,7 +8,9 @@ $data = array();
+ 
+ if (empty($_POST['submit'])) {
+ 
+-  $dir = $_GET['dir'];
++  $dir = empty($_GET['dir']) ? '' : $_GET['dir'];
++  if(!preg_match("=^[a-z0-9_-]+$=i", $dir))
++    cs_redirect('', 'modules', 'roots');
+ 
+   $data['form']['url'] = cs_url('modules','accessedit');
+   $data['lang']['edit_access'] = sprintf($cs_lang['edit_access'],$dir);
+@@ -41,14 +43,18 @@ if (empty($_POST['submit'])) {
+   
+ } else {
+ 
+-  $dir = $_POST['dir'];
++  $dir = empty($_POST['dir']) ? '' : $_POST['dir'];
++  if(!preg_match("=^[a-z0-9_-]+$=i", $dir))
++    cs_redirect('', 'modules', 'roots');
+ 
+   $access = cs_sql_select(__FILE__,'access','access_id',0,'access_clansphere ASC',0,0);
+ 
+   $cells = array('access_'.$dir);
+ 
+   foreach ($access as $level) {
+-    $values = array($_POST['access_'.$level['access_id']]);
++    $access_value = isset($_POST['access_'.$level['access_id']]) ? (int) $_POST['access_'.$level['access_id']] : 0;
++    $access_value = ($access_value < 0 OR $access_value > 5) ? 0 : $access_value;
++    $values = array($access_value);
+     cs_sql_update(__FILE__,'access',$cells,$values,$level['access_id']);
+ 
+     cs_cache_delete('access_' . $level['access_id']);
+diff --git a/mods/modules/create.php b/mods/modules/create.php
+index 9514c82..f4f9327 100644
+--- a/mods/modules/create.php
++++ b/mods/modules/create.php
+@@ -7,10 +7,14 @@ $cs_lang = cs_translate('modules');
+ if (!empty($_POST['submit'])) {
+ 
+   $error = '';
++  $moddir = empty($_POST['moddir']) ? '' : strtolower($_POST['moddir']);
++  $moddir = preg_match("=^[a-z0-9_-]+$=i", $moddir) ? $moddir : '';
++  $icon = empty($_POST['icon']) ? '' : $_POST['icon'];
++  $icon = preg_match("=^[a-z0-9_-]+$=i", $icon) ? $icon : '';
+ 
+   if (empty($_POST['modname']))
+     $error .= cs_html_br(1) . $cs_lang['no_name'];
+-  if (empty($_POST['moddir']))
++  if (empty($moddir))
+     $error .= cs_html_br(1) . $cs_lang['no_dir'];
+   if (empty($_POST['modversion']))
+     $error .= cs_html_br(1) . $cs_lang['no_version'];
+@@ -22,32 +26,34 @@ if (!empty($_POST['submit'])) {
+     $error .= cs_html_br(1) . $cs_lang['no_homepage'];
+   if (empty($_POST['description']))
+     $error .= cs_html_br(1) . $cs_lang['no_description'];
+-  if (empty($_POST['icon']))
++  if (empty($icon))
+     $error .= cs_html_br(1) . $cs_lang['no_icon'];
+-  elseif (!file_exists('symbols/'.$cs_main['img_path'].'/16/'.$_POST['icon'].'.'.$cs_main['img_ext']))
++  elseif (!file_exists('symbols/'.$cs_main['img_path'].'/16/'.$icon.'.'.$cs_main['img_ext']))
+     $error .= cs_html_br(1) . $cs_lang['icon_not_found'];
+ 
+   if (empty($error)) {
+ 
+     // Show
+-    $show = 'array(';
+-    for ($run = 0; $run < $_POST['showcount']; $run++) {
+-      if (!empty($_POST['show_'.$run]))
+-        $show .= '\''.$_POST['show_'.$run].'\' => '.$_POST['showaccess_'.$run];
+-      if ($run + 1 != $_POST['showcount'])
+-        $show .= ', ';
++    $show_data = array();
++    $show_count = empty($_POST['showcount']) ? 0 : (int) $_POST['showcount'];
++    for ($run = 0; $run < $show_count; $run++) {
++      $show_name = empty($_POST['show_'.$run]) ? '' : $_POST['show_'.$run];
++      if (!empty($show_name) AND preg_match("=^[a-z0-9_-]+$=i", $show_name)) {
++        $show_data[$show_name] = empty($_POST['showaccess_'.$run]) ? 0 : (int) $_POST['showaccess_'.$run];
++      }
+     }
+-    $show .= ')';
++    $show = var_export($show_data, true);
+ 
+     // Tables
+-    $tables = 'array(';
+-    for ($run = 0; $run < $_POST['tablescount']; $run++) {
+-      if (!empty($_POST['table_'.$run]))
+-        $tables .= '\''.$_POST['table_'.$run].'\'';
+-      if ($run + 1 != $_POST['tablescount'])
+-        $tables .= ', ';
++    $tables_data = array();
++    $tables_count = empty($_POST['tablescount']) ? 0 : (int) $_POST['tablescount'];
++    for ($run = 0; $run < $tables_count; $run++) {
++      $table_name = empty($_POST['table_'.$run]) ? '' : $_POST['table_'.$run];
++      if (!empty($table_name) AND preg_match("=^[a-z0-9_-]+$=i", $table_name)) {
++        $tables_data[] = $table_name;
++      }
+     }
+-    $tables .= ')';
++    $tables = var_export($tables_data, true);
+ 
+     $categories = empty($_POST['categories']) ? 'FALSE' : 'TRUE';
+     $protected = empty($_POST['protected']) ? 'FALSE' : 'TRUE';
+@@ -58,16 +64,16 @@ if (!empty($_POST['submit'])) {
+     $infocontent .= '// ClanSphere 2010 - www.clansphere.net'."\r\n";
+     $infocontent .= '// File created by mod modules'."\r\n\r\n";
+ 
+-    $infocontent .= '$cs_lang = cs_translate(\''.$_POST['moddir'].'\');'."\r\n\r\n";
++    $infocontent .= '$cs_lang = cs_translate(' . var_export($moddir, true) . ');'."\r\n\r\n";
+ 
+     $infocontent .= '$mod_info[\'name\'] = $cs_lang[\'mod\']'.";\r\n";
+-    $infocontent .= '$mod_info[\'version\'] = \''.$_POST['modversion']."';\r\n";
+-    $infocontent .= '$mod_info[\'released\'] = \''.cs_datepost('release','date')."';\r\n";
+-    $infocontent .= '$mod_info[\'creator\'] = \''.$_POST['creator']."';\r\n";
+-    $infocontent .= '$mod_info[\'team\'] = \''.$_POST['team']."';\r\n";
+-    $infocontent .= '$mod_info[\'url\'] = \''.$_POST['homepage']."';\r\n";
++    $infocontent .= '$mod_info[\'version\'] = ' . var_export($_POST['modversion'], true) . ";\r\n";
++    $infocontent .= '$mod_info[\'released\'] = ' . var_export(cs_datepost('release','date'), true) . ";\r\n";
++    $infocontent .= '$mod_info[\'creator\'] = ' . var_export($_POST['creator'], true) . ";\r\n";
++    $infocontent .= '$mod_info[\'team\'] = ' . var_export($_POST['team'], true) . ";\r\n";
++    $infocontent .= '$mod_info[\'url\'] = ' . var_export($_POST['homepage'], true) . ";\r\n";
+     $infocontent .= '$mod_info[\'text\'] = $cs_lang[\'mod_info\'];'."\r\n";
+-    $infocontent .= '$mod_info[\'icon\'] = \''.$_POST['icon']."';\r\n";
++    $infocontent .= '$mod_info[\'icon\'] = ' . var_export($icon, true) . ";\r\n";
+     $infocontent .= '$mod_info[\'show\'] = '.$show.";\r\n";
+     $infocontent .= '$mod_info[\'categories\'] = '.$categories.";\r\n";
+     $infocontent .= '$mod_info[\'protected\'] = '.$protected.";\r\n";
+@@ -75,11 +81,11 @@ if (!empty($_POST['submit'])) {
+ 
+     $infocontent .= '?>';
+ 
+-    $moddir = $cs_main['def_path'].'/mods/'.$_POST['moddir'];
++    $moddir_path = $cs_main['def_path'].'/mods/'.$moddir;
+ 
+-    if (!mkdir($moddir,0777))
++    if (!mkdir($moddir_path,0755))
+       $error .= cs_html_br(1) . $cs_lang['moddir_create_failed'];
+-    elseif (!$infofile = fopen($moddir.'/info.php','w'))
++    elseif (!$infofile = fopen($moddir_path.'/info.php','w'))
+       $error .= cs_html_br(1) . $cs_lang['modinfo_create_failed'];
+     elseif (!fwrite($infofile, $infocontent))
+       $error .= cs_html_br(1) . $cs_lang['modinfo_write_failed'];
+@@ -92,12 +98,12 @@ if (!empty($_POST['submit'])) {
+     $langinfocontent .= '// ClanSphere 2010 - www.clansphere.net'."\r\n";
+     $langinfocontent .= '// File created by mod modules'."\r\n\r\n";
+ 
+-    $langinfocontent .= '$cs_lang[\'mod\'] = \''.$_POST['modname']."';\r\n";
+-    $langinfocontent .= '$cs_lang[\'mod_info\'] = \''.$_POST['description']."';\r\n\r\n";
++    $langinfocontent .= '$cs_lang[\'mod\'] = ' . var_export($_POST['modname'], true) . ";\r\n";
++    $langinfocontent .= '$cs_lang[\'mod_info\'] = ' . var_export($_POST['description'], true) . ";\r\n\r\n";
+ 
+     $langinfocontent .= '?>';
+ 
+-    if (!$langinfofile = fopen($cs_main['def_path'].'/lang/'.$account['users_lang'].'/'.$_POST['moddir'].'.php','w'))
++    if (!$langinfofile = fopen($cs_main['def_path'].'/lang/'.$account['users_lang'].'/'.$moddir.'.php','w'))
+       $error .= cs_html_br(1) . $cs_lang['modinfolang_create_failed'];
+     elseif (!fwrite($langinfofile, $langinfocontent))
+       $error .= cs_html_br(1) . $cs_lang['modinfolang_write_failed']; 
+@@ -105,7 +111,7 @@ if (!empty($_POST['submit'])) {
+       fclose($langinfofile);
+ 
+     // SQL
+-    $query = 'ALTER TABLE {pre}_access ADD access_'.cs_sql_escape($_POST['moddir']).' int(2) NOT NULL default \'0\';';
++    $query = 'ALTER TABLE {pre}_access ADD access_'.cs_sql_escape($moddir).' int(2) NOT NULL default \'0\';';
+     $query = cs_sql_replace($query);
+     if (!cs_sql_query(__FILE__,$query)) {
+       $error .= cs_html_br(1) . $cs_lang['sqlaccess_failed'];
+diff --git a/mods/modules/deactivate.php b/mods/modules/deactivate.php
+index b13bf97..fe7af03 100644
+--- a/mods/modules/deactivate.php
++++ b/mods/modules/deactivate.php
+@@ -5,7 +5,9 @@
+ $cs_lang = cs_translate('modules');
+ 
+ $data = array();
+-$dir = $_GET['dir'];
++$dir = empty($_GET['dir']) ? '' : $_GET['dir'];
++if(!preg_match("=^[a-z0-9_-]+$=i", $dir) OR !file_exists('mods/' . $dir . '/access.php'))
++  cs_redirect('', 'modules', 'roots');
+ 
+ if (isset($_GET['confirm'])) {
+   
+diff --git a/mods/news/picture.php b/mods/news/picture.php
+index 24984cc..85c35fb 100644
+--- a/mods/news/picture.php
++++ b/mods/news/picture.php
+@@ -4,7 +4,7 @@
+ 
+ $cs_lang = cs_translate('news');
+ $cs_post = cs_post('id');
+-$cs_get = cs_get('id');
++$cs_get = cs_get('id,delete');
+ $files = cs_files();
+ 
+ $cs_news_id = empty($cs_get['id']) ? 0 : $cs_get['id'];
+@@ -14,6 +14,9 @@ $op_news = cs_sql_option(__FILE__,'news');
+ $img_filetypes = array('gif','jpg','png');
+ 
+ $news = cs_sql_select(__FILE__,'news','news_pictures',"news_id = '" . $cs_news_id . "'");
++if(empty($news))
++  cs_redirect($cs_lang['del_false'],'news','manage');
++
+ $news_string = $news['news_pictures'];
+ $news_pics = empty($news_string) ? array() : explode("\n",$news_string);
+ $count_pics = count($news_pics);
+@@ -24,7 +27,10 @@ $error = 0;
+ $message = '';
+ 
+ if(!empty($_GET['delete'])) {
+-  $target = $_GET['delete'] - 1;
++  $target = $cs_get['delete'] - 1;
++  if(!isset($news_pics[$target]))
++    cs_redirect($cs_lang['del_false'],'news','picture','id=' . $cs_news_id);
++
+   cs_unlink('news', 'picture-' . $news_pics[$target]);
+   cs_unlink('news', 'thumb-' . $news_pics[$target]);
+   $news_pics[$target] = FALSE;
+diff --git a/mods/notifymods/edit.php b/mods/notifymods/edit.php
+index 631060d..107be8b 100644
+--- a/mods/notifymods/edit.php
++++ b/mods/notifymods/edit.php
+@@ -46,7 +46,7 @@ if (!empty($error) OR !isset($_POST['submit'])) {
+ else {
+   $notifymods_cells = array_keys($cs_bm);
+   $notifymods_save = array_values($cs_bm);
+-  cs_sql_update(__FILE__,'notifymods',$notifymods_cells,$notifymods_save,$_POST['id']);
++  cs_sql_update(__FILE__,'notifymods',$notifymods_cells,$notifymods_save,(int) $_POST['id']);
+   cs_redirect($cs_lang['changes_done'],'notifymods');
+ } 
+ 
+diff --git a/mods/pictures/functions.php b/mods/pictures/functions.php
+index ba9b556..34f30db 100644
+--- a/mods/pictures/functions.php
++++ b/mods/pictures/functions.php
+@@ -42,7 +42,7 @@ function cs_pictures_delete ($var, $mod = 0) {
+   
+   cs_sql_delete(__FILE__, 'pictures', $pictures_id);
+   
+-  cs_unlink('pictures' . $file);
++  cs_unlink('pictures', $file);
+   
+   return true;
+ }
+diff --git a/mods/rss/generate.php b/mods/rss/generate.php
+index 8cad188..b00ec63 100644
+--- a/mods/rss/generate.php
++++ b/mods/rss/generate.php
+@@ -50,7 +50,7 @@ function cs_update_rss($mod, $action, $name, $desc, $array, $abcode = 0) {
+       stream_encoding($save_file, $cs_main['charset']);
+     fwrite($save_file,$content);
+     fclose($save_file);
+-    @chmod($target . $mod . '.xml', 0755);
++    @chmod($target . $mod . '.xml', 0644);
+   }
+   else {
+     cs_error($target,'cs_update_rss - Unable to write into directory');
+diff --git a/mods/search/list.php b/mods/search/list.php
+index a9483a0..0647a64 100644
+--- a/mods/search/list.php
++++ b/mods/search/list.php
+@@ -62,5 +62,6 @@ if(!empty($submit) AND empty($search_error)) {
+   $data['search']['where'] = str_replace('..', '', $data['search']['raw_where']);
+ 
+   $target = 'mods/search/mods/' . $data['search']['where'] . '.php';
+-  require($target);
++  if(in_array($data['search']['where'], $mods_allowed) AND file_exists($target))
++    require($target);
+ }
+diff --git a/mods/search/navlist.php b/mods/search/navlist.php
+index 7719ff9..eac2a17 100644
+--- a/mods/search/navlist.php
++++ b/mods/search/navlist.php
+@@ -6,6 +6,8 @@ $cs_lang = cs_translate('search');
+ 
+ $data = array();
+ 
++$mods_allowed = array('articles', 'clans', 'files', 'news', 'users');
++
+ $search_error = 0; 
+ $data['search']['where'] = ''; 
+ $data['search']['text'] = '';
+@@ -19,12 +21,12 @@ $data['if']['text'] = false;
+ if(!empty($submit)) {
+   if(!empty($_REQUEST['text'])) {
+     $data['if']['text'] = true;
+-    $data['search']['text'] = $_REQUEST['text'];
++    $data['search']['text'] = cs_html_attr($_REQUEST['text']);
+     } else {
+     $data['search']['errmsg'] = cs_icon('important'). $cs_lang['error_text'] . cs_html_br(1);
+     $search_error++;
+   } 
+-  if(!empty($_REQUEST['where'])) {
++  if(!empty($_REQUEST['where']) AND in_array($_REQUEST['where'], $mods_allowed)) {
+     $data['search']['where'] = $_REQUEST['where'];
+     } else {
+     $data['search']['errmsg'] .= cs_icon('important'). $cs_lang['error_modul'];
+diff --git a/mods/servers/gameq/Protocol/ventrilo.php b/mods/servers/gameq/Protocol/ventrilo.php
+index 3fcc96b..90d07e6 100644
+--- a/mods/servers/gameq/Protocol/ventrilo.php
++++ b/mods/servers/gameq/Protocol/ventrilo.php
+@@ -105,13 +105,15 @@ class GameQ_Protocol_ventrilo extends GameQ_Protocol
+ 	{
+ 		return preg_replace_callback(
+ 		'|%([0-9A-F]{2})|',
+-			create_function(
+-				'$matches',
+-				'return chr (hexdec ($matches[0]));'
+-			),
++			array($this, 'decodeHexMatch'),
+         $data
+ 		);
+ 	}
++
++	public function decodeHexMatch($matches)
++	{
++		return chr(hexdec($matches[1]));
++	}
+ 	
+ 	private function channel($data)
+ 	{
+diff --git a/mods/shoutbox/multiremove.php b/mods/shoutbox/multiremove.php
+index f8b24d8..36730c8 100644
+--- a/mods/shoutbox/multiremove.php
++++ b/mods/shoutbox/multiremove.php
+@@ -5,19 +5,25 @@
+ $cs_lang = cs_translate('shoutbox');
+ 
+ $data = array();
+-$shoutbox_id = (int) $_GET['id'];
++$cs_get = cs_get('confirm,ids');
+ 
+-if(isset($_GET['confirm'])) {
+-  $values = explode('-',$_GET['ids']);
++if(isset($cs_get['confirm'])) {
++  $values = empty($_GET['ids']) ? array() : explode('-',$_GET['ids']);
++  $ids = array();
++  foreach($values AS $value) {
++    $id = (int) $value;
++    if($id > 0)
++      $ids[] = $id;
++  }
+   
+   $query = 'DELETE FROM {pre}_shoutbox WHERE ';
+-  $count_values = count($values);
++  $count_values = count($ids);
++  if(empty($count_values))
++    cs_redirect($cs_lang['no_selection'],'shoutbox','manage');
+   
+   for($run = 0; $run < $count_values; $run++) {
+-    $id = (int) $values[$run];
+-    
+   if($run != 0) { $query .= ' OR '; }
+-    $query .= 'shoutbox_id = \'' . $id . '\'';
++    $query .= 'shoutbox_id = \'' . $ids[$run] . '\'';
+   }
+   cs_sql_query(__FILE__,$query);
+   
+@@ -25,18 +31,20 @@ if(isset($_GET['confirm'])) {
+ }
+ else {
+   $values = $_POST;
+-  $ids = '';
++  $ids = array();
+   
+   foreach($values AS $key => $value) {
+     if(strpos($key,'select_') === false) { continue; }
+-    $ids .= substr($key,7) . '-';
++    $id = (int) substr($key,7);
++    if($id > 0)
++      $ids[] = $id;
+   }
+ 
+   if(empty($ids)) { 
+   cs_redirect($cs_lang['no_selection'],'shoutbox','manage');
+   }
+   else { 
+-    $ids = substr($ids,0,-1);
++    $ids = implode('-',$ids);
+     
+     $data['content']['head'] = $cs_lang['really_remove_selected'];
+     $data['content']['bottom']  = cs_link($cs_lang['confirm'],'shoutbox','multiremove','ids='.$ids.'&amp;confirm');
+diff --git a/mods/squads/view.php b/mods/squads/view.php
+index a2e8de9..610216c 100644
+--- a/mods/squads/view.php
++++ b/mods/squads/view.php
+@@ -122,6 +122,7 @@ if(!empty($account['access_awards'])) {
+   for($run=0; $run < $awards_loop; $run++) {
+     $awards[$run]['awards_time'] = cs_date('date',$awards[$run]['awards_time']);
+     $awards[$run]['awards_event'] = cs_secure($awards[$run]['awards_event']);
++    $awards[$run]['awards_event_url'] = cs_secure(cs_clean_url_part($awards[$run]['awards_event_url']));
+     $awards[$run]['awards_place'] = $awards[$run]['awards_rank'] < 4 ? cs_html_img("symbols/awards/pokal_" . $medals[$awards[$run]['awards_rank']] . ".png") : cs_secure($awards[$run]['awards_rank']);
+   }
+ }
+diff --git a/mods/static/edit.php b/mods/static/edit.php
+index 62d930c..33811d7 100644
+--- a/mods/static/edit.php
++++ b/mods/static/edit.php
+@@ -36,7 +36,8 @@ if(isset($_POST['submit'])) {
+   $cs_static['static_text'] = empty($cs_main['rte_html']) ? $_POST['static_text'] : cs_abcode_inhtml($_POST['static_text'], 'add');
+   $cs_static['static_table'] = isset($_POST['static_table']) ? 1 : 0;
+   $cs_static['static_comments'] = isset($_POST['static_comments']) ? 1 : 0;
+-  $cs_static['static_access'] = $_POST['static_access'];
++  $cs_static['static_access'] = empty($_POST['static_access']) ? 0 : (int) $_POST['static_access'];
++  $cs_static['static_access'] = ($cs_static['static_access'] < 0 OR $cs_static['static_access'] > 5) ? 0 : $cs_static['static_access'];
+   $cs_static['static_admins'] = isset($_POST['static_admins']) ? 1 : 0;
+ 
+     $error = 0;
+@@ -67,7 +68,8 @@ if(isset($_POST['preview']) AND empty($error)) {
+   $cs_static['static_text'] = $_POST['static_text'];
+   $cs_static['static_table'] = isset($_POST['static_table']) ? 1 : 0;
+   $cs_static['static_comments'] = isset($_POST['static_comments']) ? 1 : 0;
+-  $cs_static['static_access'] = $_POST['static_access'];
++  $cs_static['static_access'] = empty($_POST['static_access']) ? 0 : (int) $_POST['static_access'];
++  $cs_static['static_access'] = ($cs_static['static_access'] < 0 OR $cs_static['static_access'] > 5) ? 0 : $cs_static['static_access'];
+   $cs_static['static_admins'] = isset($_POST['static_admins']) ? 1 : 0;
+ 
+ $cs_view_static['static']['title'] = $cs_static['static_title'];
+diff --git a/mods/static/options.php b/mods/static/options.php
+index e65893c..c5e5d03 100644
+--- a/mods/static/options.php
++++ b/mods/static/options.php
+@@ -7,7 +7,7 @@ $cs_lang = cs_translate('static');
+ if (isset($_POST['submit'])) {
+ 
+   $save = array();
+-  $save['php_eval'] = empty($_POST['php_eval']) ? 0 : 1;
++  $save['php_eval'] = 0;
+ 
+   require_once 'mods/clansphere/func_options.php';
+ 
+diff --git a/mods/users/activate.php b/mods/users/activate.php
+index 6425a4b..a783da7 100644
+--- a/mods/users/activate.php
++++ b/mods/users/activate.php
+@@ -22,8 +22,8 @@ if(empty($users_count)) {
+   $data['activate']['link'] = cs_url('users','login');
+ }
+ else {
+-  $users_cells = array('users_active');
+-  $users_save = array('1');
++  $users_cells = array('users_active', 'users_regkey');
++  $users_save = array('1', '');
+   cs_sql_update(__FILE__,'users', $users_cells,$users_save,$cs_user['users_id']);
+   $data['head']['body_text'] = $cs_lang['account_activated'];
+   $data['activate']['link'] = cs_url('users','home');
+diff --git a/mods/users/functions.php b/mods/users/functions.php
+index a033411..eceb25f 100644
+--- a/mods/users/functions.php
++++ b/mods/users/functions.php
+@@ -7,17 +7,10 @@
+ //-----------------------------------------------------------------// 
+ function generate_code($anz = 0) {
+ 
+-  $pass = '';
+-  mt_srand((double)microtime() * 1000000);
+   if($anz < 1) {
+-    $anz = mt_rand(16,32);
++    $anz = 32;
+   }
+-  $a = 'abcdefghijklmnopqrstuvwxyz1029384756';
+-  $l = strlen($a) - 1;
+-  for($i = 0; $i < $anz; $i++) {
+-    $pass .= substr($a, mt_rand(0, $l), 1);
+-  }
+-  return $pass;
++  return cs_random_string($anz);
+ }
+ 
+ //-----------------------------------------------------------------// 
+@@ -26,6 +19,13 @@ function generate_code($anz = 0) {
+ function create_user($access,$nick,$pwd,$lang,$email,$country,$timezone,$dst,$newsletter = 0,$active = 1,$empty = 0,$regkey = '') {
+ 
+   global $cs_db, $cs_main;
++  $access = (int) $access;
++  $lang = cs_safe_lang($lang);
++  $country = preg_match("=^[a-z]{2,3}$=i", $country) ? strtolower($country) : 'fam';
++  $timezone = (int) $timezone;
++  $newsletter = empty($newsletter) ? 0 : 1;
++  $active = empty($active) ? 0 : 1;
++
+   if($cs_db['hash'] == 'md5') { 
+     $sec_pwd = md5($pwd); 
+   } elseif($cs_db['hash'] == 'sha1') { 
+diff --git a/mods/users/remove.php b/mods/users/remove.php
+index 1bac10b..4210962 100644
+--- a/mods/users/remove.php
++++ b/mods/users/remove.php
+@@ -14,16 +14,11 @@ if(isset($_GET['agree'])) {
+ 
+   $nick = $nick_temp['users_nick']; 
+ 
+-  $chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+-  $chars_count = strlen($chars)-1;
+   $mail = '';
+   $given = 1;
+ 
+   while (!empty($given)) {
+-    for ($i = 0; $i < 40; $i++) {
+-      $rand = rand(0,$chars_count);
+-      $mail .= $chars{$rand};
+-    }
++    $mail = cs_random_string(40);
+     $given = cs_sql_count(__FILE__, 'users', "users_email = '" . $mail . "'");
+   }
+ 
+diff --git a/mods/users/sendpw.php b/mods/users/sendpw.php
+index 209c50a..e5b509f 100644
+--- a/mods/users/sendpw.php
++++ b/mods/users/sendpw.php
+@@ -4,6 +4,8 @@
+ 
+ $cs_lang = cs_translate('users');
+ 
++require_once('mods/users/functions.php');
++
+ $cs_contact = cs_sql_option(__FILE__, 'contact');
+ 
+ $captcha = extension_loaded('gd') ? 1 : 0;
+@@ -24,7 +26,7 @@ if(isset($_POST['submit'])) {
+     $errormsg .= $cs_lang['captcha_false'] . cs_html_br(1);
+   }
+ 
+-  $search_email = cs_sql_count(__FILE__,'users',"users_email = '" . cs_sql_escape($sendpw['email']) . "'");
++  $search_email = cs_sql_count(__FILE__,'users',"users_email = '" . cs_sql_escape($sendpw['email']) . "' AND users_active = 1 AND users_delete = 0");
+   if(empty($search_email)) {
+     $error++;
+     $errormsg .= $cs_lang['email_unknown'] . cs_html_br(1);
+@@ -39,9 +41,9 @@ if(isset($_POST['submit'])) {
+       $error++;
+       $errormsg .= $cs_lang['short_pwd'] . cs_html_br(1);
+     }
+-    $key2 = cs_sql_select(__FILE__,'users','users_pwd,users_id',"users_email = '" . cs_sql_escape($sendpw['email']) . "'");
+-    $key = substr($key2['users_pwd'],4,16);
+-    if($key != $sendpw['key']) {
++    $key2 = cs_sql_select(__FILE__,'users','users_regkey,users_id',"users_email = '" . cs_sql_escape($sendpw['email']) . "' AND users_active = 1 AND users_delete = 0");
++    $key = $key2['users_regkey'];
++    if(empty($key) OR !cs_hash_equals($key, $sendpw['key'])) {
+       $error++;
+       $errormsg .= $cs_lang['error_key'] . cs_html_br(1);
+     }
+@@ -54,8 +56,8 @@ if(isset($_POST['submit'])) {
+       elseif($cs_db['hash'] == 'sha1') { 
+         $sec_pwd = sha1($sendpw['new_pwd']);
+       }
+-      $cells = array('users_pwd');
+-      $content = array($sec_pwd);
++      $cells = array('users_pwd', 'users_regkey');
++      $content = array($sec_pwd, '');
+       cs_sql_update(__FILE__,'users',$cells,$content,$key2['users_id']);
+       $success = 1;
+     }
+@@ -65,8 +67,9 @@ if(isset($_POST['submit'])) {
+   }
+   elseif(empty($error)) {
+     $checked = 1;
+-    $key2 = cs_sql_select(__FILE__,'users','users_pwd, users_nick',"users_email = '" . cs_sql_escape($sendpw['email']) . "'");
+-    $key = substr($key2['users_pwd'],4,16);
++    $key2 = cs_sql_select(__FILE__,'users','users_id, users_nick',"users_email = '" . cs_sql_escape($sendpw['email']) . "' AND users_active = 1 AND users_delete = 0");
++    $key = generate_code(40);
++    cs_sql_update(__FILE__,'users',array('users_regkey'),array($key),$key2['users_id']);
+ 
+     $ip = cs_getip();
+     $cs_contact = cs_sql_option(__FILE__, 'contact');
+diff --git a/mods/votes/navlist.php b/mods/votes/navlist.php
+index babd3f2..287ccbb 100644
+--- a/mods/votes/navlist.php
++++ b/mods/votes/navlist.php
+@@ -8,9 +8,10 @@ $users_id = $account['users_id'];
+ $users_ip = cs_getip();
+ $time = cs_time();
+ $mod = 'votes';
+-$votes_error = '';
++$votes_error = 0;
+ $votes_form = 1;
+ $votes_access = $account['access_votes'];
++$voted_answer = 0;
+ 
+ global $cs_db;
+ $type = $cs_db['type'];
+@@ -22,7 +23,7 @@ $where = "votes_access <= '" . $votes_access . "' AND votes_start <= '" . $time
+ $sort = (in_array($type, array('mysql', 'mysqli'))) ? '{random}' : 'votes_end ASC';
+ $cs_votes = cs_sql_select(__FILE__,$from,$select,$where, $sort);
+ $votes_loop = count($cs_votes);
+-$votes_id = $cs_votes['votes_id'];
++$votes_id = empty($cs_votes['votes_id']) ? 0 : (int) $cs_votes['votes_id'];
+ 
+ if(!empty($votes_loop)) {
+   $where = "voted_mod = 'votes' AND voted_fid = '" . $votes_id . "' AND voted_ip = '" . cs_sql_escape($users_ip) . "'";
+@@ -56,36 +57,45 @@ if(!empty($users_id)) {
+ 
+ if(!empty($_POST['voted_answer'])) {
+   if(!empty($cs_votes['votes_several'])) {
++    $voted_answer = array();
+     foreach($_POST['voted_answer'] AS $answer) {
+-    $voted_answer[] = $answer;
++    $voted_answer[] = (int) $answer;
+   }
+   } else { 
+-    $voted_answer = $_POST['voted_answer'];
++    $voted_answer = (int) $_POST['voted_answer'];
+   }
+ } else {
+   $votes_error++;
+ }
+ 
+ if(!empty($_REQUEST['votes_id'])) {
+-  $votes_id = $_REQUEST['votes_id'];
++  $submitted_votes_id = (int) $_REQUEST['votes_id'];
++  if(empty($votes_id) OR $submitted_votes_id != $votes_id)
++    $votes_error++;
+ } else {
+   $votes_error++;
+ }
+ 
++if(!empty($cs_votes) AND empty($cs_votes['votes_several']) AND !empty($voted_answer)) {
++  $temp = explode("\n", $cs_votes['votes_election']);
++  $count_election = count($temp);
++  if($voted_answer < 1 OR $voted_answer >= $count_election)
++    $votes_error++;
++}
++
+ if(isset($_POST['submit_votes']) ) {
+   if(empty($votes_error)) {
+     $votes_form = 0;
+-  if(isset($_POST['votes_several'])) {
++  if(isset($_POST['votes_several']) AND !empty($cs_votes['votes_several'])) {
+     
+     $temp = explode("\n", $cs_votes['votes_election']);
+     $count_election = count($temp);
+-    $count_voted = count($_POST['voted_answer']);
++    $count_voted = count($voted_answer);
+     $error_several = 0;
+     $where = "voted_fid = '" . $votes_id . "' AND voted_mod = '" . $mod . "' AND voted_ip = '" . cs_sql_escape($users_ip) . "'";
+     $where .= " AND users_id = '" . $users_id . "' AND (";
+     $voting = array();
+     for ($run = 0; $run < $count_voted; $run++) {
+-      settype($voted_answer[$run], 'integer');
+       if ($voted_answer[$run] < 1 || $voted_answer[$run] >= $count_election || in_array($voted_answer[$run], $voting)) {
+         $error_several = 1;
+         break;
+diff --git a/mods/votes/view.php b/mods/votes/view.php
+index 41ed2a5..f2a8777 100644
+--- a/mods/votes/view.php
++++ b/mods/votes/view.php
+@@ -20,6 +20,9 @@ if(empty($_REQUEST['where'])) {
+   $from = 'votes';
+   $select = 'votes_access, votes_question, votes_election, votes_close, votes_end, votes_several';
+   $cs_votes = cs_sql_select(__FILE__,$from,$select,"votes_id = '" . $cs_votes_id . "'");
++  if(empty($cs_votes))
++    cs_redirect($cs_lang['no_id'],'votes','list');
++
+   $votes_access = $cs_votes['votes_access'];
+   $cs_votes_save['voted_ip'] = cs_getip();
+   $cs_votes_save['users_id'] = $account['users_id'];
+@@ -47,7 +50,7 @@ if(empty($_REQUEST['where'])) {
+         $checkit_userip = cs_sql_count(__FILE__,'voted',$where);
+       }
+ 
+-      $error = '';
++      $error = 0;
+       $errormsg = '';
+ 
+       if(!empty($checkit_userip))
+@@ -57,35 +60,46 @@ if(empty($_REQUEST['where'])) {
+       }
+       $cs_votes_save['voted_time'] = cs_time();
+       $cs_votes_save['voted_mod'] = 'votes';
+-      $cs_votes_save['voted_answer'] = empty($_POST['voted_answer']) ? 0 : $_POST['voted_answer'];
++      if(isset($_POST['votes_several']) && !empty($cs_votes['votes_several']) && !empty($_POST['voted_answer']) && is_array($_POST['voted_answer'])) {
++        $cs_votes_save['voted_answer'] = array();
++        foreach($_POST['voted_answer'] AS $answer)
++          $cs_votes_save['voted_answer'][] = (int) $answer;
++      }
++      else {
++        $cs_votes_save['voted_answer'] = empty($_POST['voted_answer']) ? 0 : (int) $_POST['voted_answer'];
++      }
+ 
+-      $cs_votes_save['voted_fid'] = $_POST['votes_id'];
++      $cs_votes_save['voted_fid'] = empty($_POST['votes_id']) ? 0 : (int) $_POST['votes_id'];
+       if(empty($cs_votes_save['voted_answer']))
+       {
+         $error++;
+         $errormsg .= $cs_lang['no_answer'] . cs_html_br(1);
+       }
+-      if(empty($cs_votes_save['voted_fid']))
++      if(empty($cs_votes_save['voted_fid']) OR $cs_votes_save['voted_fid'] != $cs_votes_id)
+       {
+         $error++;
+         $errormsg .= $cs_lang['no_id'] . cs_html_br(1);
+       }
+ 
++      $temp = explode("\n", $cs_votes['votes_election']);
++      $count_election = count($temp);
++      if((!isset($_POST['votes_several']) OR empty($cs_votes['votes_several'])) AND ($cs_votes_save['voted_answer'] < 1 OR $cs_votes_save['voted_answer'] >= $count_election)) {
++        $error++;
++        $errormsg .= $cs_lang['no_answer'] . cs_html_br(1);
++      }
++
+       if(empty($error))
+       {
+         $votes_form = 0;
+         if(isset($_POST['votes_several']) && !empty($cs_votes['votes_several'])) {
+           
+-          $temp = explode("\n", $cs_votes['votes_election']);
+-          $count_election = count($temp);
+-          $count_voted = count($_POST['voted_answer']);
++          $count_voted = count($cs_votes_save['voted_answer']);
+           $error_several = 0;
+           $where = "voted_fid = '" . $cs_votes_id . "' AND voted_mod = 'votes' AND voted_ip = '" . cs_sql_escape($cs_votes_save['voted_ip']) . "'";
+           $where .= ' AND users_id = "' . $cs_votes_save['users_id'] . '" AND (';
+           $voting = array();
+           
+-          foreach ($_POST['voted_answer'] AS $answer) {
+-            settype($answer, 'integer');
++          foreach ($cs_votes_save['voted_answer'] AS $answer) {
+             if ($answer < 1 || $answer >= $count_election || in_array($answer, $voting)) {
+               $error_several = 1;
+               break;
+@@ -99,7 +113,7 @@ if(empty($_REQUEST['where'])) {
+           
+           if (!empty($error_several)) die('Multivote triggered an error with answers -> Execution halted.');
+           
+-          foreach($_POST['voted_answer'] AS $answer) {
++          foreach($voting AS $answer) {
+             $cs_votes_save['voted_answer'] = $answer;
+             $votes_cells = array_keys($cs_votes_save);
+             $votes_save = array_values($cs_votes_save);
+@@ -175,7 +189,8 @@ if(empty($_REQUEST['where'])) {
+         $cs_sort[2] = array('answer',SORT_ASC);
+         $cs_sort[3] = array('count',SORT_DESC);
+         $cs_sort[4] = array('count',SORT_ASC);
+-        empty($_REQUEST['sort']) ? $sort = 0 : $sort = $_REQUEST['sort'];
++        $sort = empty($_REQUEST['sort']) ? 0 : (int) $_REQUEST['sort'];
++        $sort = isset($cs_sort[$sort]) ? $sort : 0;
+         $order = $cs_sort[$sort];
+ 
+         function cs_array_sort($array,$sort,$key)
+diff --git a/mods/wars/picture.php b/mods/wars/picture.php
+index 9716da6..1088d72 100644
+--- a/mods/wars/picture.php
++++ b/mods/wars/picture.php
+@@ -4,7 +4,7 @@
+ 
+ $cs_lang = cs_translate('wars');
+ $cs_post = cs_post('id');
+-$cs_get = cs_get('id');
++$cs_get = cs_get('id,delete');
+ $files = cs_files();
+ $data = array();
+ 
+@@ -15,6 +15,9 @@ $op_wars = cs_sql_option(__FILE__,'wars');
+ $img_filetypes = array('gif','jpg','png');
+ 
+ $war = cs_sql_select(__FILE__,'wars','wars_pictures',"wars_id = '" . $cs_wars_id . "'");
++if(empty($war))
++  cs_redirect($cs_lang['del_false'],'wars','manage');
++
+ $war_string = $war['wars_pictures'];
+ $war_pics = empty($war_string) ? array() : explode("\n",$war_string);
+ $war_next = count($war_pics) + 1;
+@@ -22,7 +25,10 @@ $war_next = count($war_pics) + 1;
+ $error = '';
+ 
+ if(!empty($_GET['delete'])) {
+-  $target = $_GET['delete'] - 1;
++  $target = $cs_get['delete'] - 1;
++  if(!isset($war_pics[$target]))
++    cs_redirect($cs_lang['del_false'],'wars','picture','id=' . $cs_wars_id);
++
+   cs_unlink('wars', 'picture-' . $war_pics[$target]);
+   cs_unlink('wars', 'thumb-' . $war_pics[$target]);
+   $war_pics[$target] = FALSE;
+diff --git a/mods/wars/rounds.php b/mods/wars/rounds.php
+index f64e913..7052450 100644
+--- a/mods/wars/rounds.php
++++ b/mods/wars/rounds.php
+@@ -22,9 +22,13 @@ $error = '';
+ 
+ if (!empty($_GET['up']) || !empty($_GET['down'])) {
+   
+-  $roundid = !empty($_GET['up']) ? (int) $_GET['up'] : $_GET['down'];
++  $roundid = !empty($_GET['up']) ? (int) $_GET['up'] : (int) $_GET['down'];
++  if ($roundid < 1)
++    cs_redirect($cs_lang['rounds_management'],'wars','rounds','id=' . $wars_id);
+   
+   $round = cs_sql_select(__FILE__,'rounds','rounds_order',"rounds_id = '".$roundid."'");
++  if (empty($round))
++    cs_redirect($cs_lang['rounds_management'],'wars','rounds','id=' . $wars_id);
+   
+   $new_order = !empty($_GET['up']) ? $round['rounds_order'] - 1 : $round['rounds_order'] + 1;
+   $where = "wars_id = '" . $wars_id . "' AND rounds_order = '" . $new_order . "'";
+@@ -48,11 +52,13 @@ if (!empty($_GET['up']) || !empty($_GET['down'])) {
+   
+   }
+   
+-  $values = array($round['rounds_order']);
+-  cs_sql_update(__FILE__,'rounds', $cells, $values, $round_old['rounds_id']);
+-  
+-  $values = array($new_order);
+-  cs_sql_update(__FILE__,'rounds', $cells, $values, $roundid);   
++  if (!empty($round_old)) {
++    $values = array($round['rounds_order']);
++    cs_sql_update(__FILE__,'rounds', $cells, $values, $round_old['rounds_id']);
++    
++    $values = array($new_order);
++    cs_sql_update(__FILE__,'rounds', $cells, $values, $roundid);
++  }
+   
+ }
+ 
+diff --git a/mods/wars/users.php b/mods/wars/users.php
+index 58a0f09..8ab588e 100644
+--- a/mods/wars/users.php
++++ b/mods/wars/users.php
+@@ -1,8 +1,9 @@
+ <?php
+ $cs_lang = cs_translate('wars');
+-$users_id = $_REQUEST['id'];
++$users_id = empty($_REQUEST['id']) ? 0 : (int) $_REQUEST['id'];
+ 
+ $where = empty($_REQUEST['where']) ? $_GET['id'] : $_REQUEST['where'];
++settype($where, 'integer');
+ $data = array();
+ $data['wars']['see_page'] = cs_addons('users','view',$where,'wars');
+ 
+diff --git a/system/cache/file.php b/system/cache/file.php
+index 1cb13f0..5aebf75 100644
+--- a/system/cache/file.php
++++ b/system/cache/file.php
+@@ -2,6 +2,42 @@
+ // ClanSphere 2010 - www.clansphere.net
+ // $Id$
+ 
++function cs_cache_token($name, $ttl = 0) {
++
++  $token = empty($ttl) ? $name : 'ttl_' . $name;
++  $token = preg_replace("=[^a-z0-9._-]=i", '_', (string) $token);
++  $token = trim($token, '._');
++
++  return empty($token) ? 'cache' : $token;
++}
++
++function cs_cache_has_object($content) {
++
++  $length = strlen($content);
++  for($pos = 0; $pos < $length; $pos++) {
++    $char = $content{$pos};
++
++    if(($char == 'O' OR $char == 'C') AND isset($content{$pos + 1}) AND $content{$pos + 1} == ':')
++      return true;
++
++    if($char == 's' AND isset($content{$pos + 1}) AND $content{$pos + 1} == ':') {
++      $len_start = $pos + 2;
++      $len_end = strpos($content, ':', $len_start);
++      if($len_end === false)
++        return false;
++
++      $string_length = (int) substr($content, $len_start, $len_end - $len_start);
++      $quote_pos = strpos($content, '"', $len_end);
++      if($quote_pos === false)
++        return false;
++
++      $pos = $quote_pos + $string_length + 1;
++    }
++  }
++
++  return false;
++}
++
+ function cs_cache_clear() {
+ 
+   $content = cs_paths('uploads/cache');
+@@ -17,7 +53,7 @@ function cs_cache_clear() {
+ 
+ function cs_cache_delete($name, $ttl = 0) {
+ 
+-  $token = empty($ttl) ? $name : 'ttl_' . $name;
++  $token = cs_cache_token($name, $ttl);
+   if(file_exists('uploads/cache/' . $token . '.tmp'))
+     unlink('uploads/cache/' . $token . '.tmp');
+ }
+@@ -37,11 +73,24 @@ function cs_cache_info() {
+ 
+ function cs_cache_load($name, $ttl = 0) {
+ 
+-  $token = empty($ttl) ? $name : 'ttl_' . $name;
++  $token = cs_cache_token($name, $ttl);
+   if(file_exists('uploads/cache/' . $token . '.tmp')) {
+ 
+-    if(empty($ttl) OR filemtime('uploads/cache/' . $token . '.tmp') >= (time() - $ttl))
+-      return unserialize(file_get_contents('uploads/cache/' . $token . '.tmp'));
++    if(empty($ttl) OR filemtime('uploads/cache/' . $token . '.tmp') >= (time() - $ttl)) {
++      $content = file_get_contents('uploads/cache/' . $token . '.tmp');
++      if($content === false)
++        return false;
++
++      if(cs_cache_has_object($content)) {
++        cs_error('uploads/cache/' . $token . '.tmp', 'cs_cache_load - Refused serialized object in cache file');
++        return false;
++      }
++
++      if(version_compare(phpversion(), '7.0.0', '>='))
++        return unserialize($content, array('allowed_classes' => false));
++      else
++        return unserialize($content);
++    }
+   }
+ 
+   return false;
+@@ -49,7 +98,7 @@ function cs_cache_load($name, $ttl = 0) {
+ 
+ function cs_cache_save($name, $content, $ttl = 0) {
+ 
+-  $token = empty($ttl) ? $name : 'ttl_' . $name;
++  $token = cs_cache_token($name, $ttl);
+   cs_cache_delete($token);
+ 
+   global $cs_main;
+@@ -58,13 +107,21 @@ function cs_cache_save($name, $content, $ttl = 0) {
+   elseif(is_writeable('uploads/cache/')) {
+     $store = serialize($content);
+     $cache_file = 'uploads/cache/' . $token . '.tmp';
+-    $save_cache = fopen($cache_file, 'a');
+-    # set stream encoding if possible to avoid converting issues
+-    if(function_exists('stream_encoding'))
+-      stream_encoding($save_cache, $cs_main['charset']);
+-    fwrite($save_cache, $store);
+-    fclose($save_cache);
+-    chmod($cache_file, 0755);
++    $save_cache = fopen($cache_file, 'w');
++    if($save_cache !== false) {
++      # set stream encoding if possible to avoid converting issues
++      if(function_exists('stream_encoding'))
++        stream_encoding($save_cache, $cs_main['charset']);
++      if(function_exists('flock'))
++        flock($save_cache, LOCK_EX);
++      fwrite($save_cache, $store);
++      if(function_exists('flock'))
++        flock($save_cache, LOCK_UN);
++      fclose($save_cache);
++      chmod($cache_file, 0644);
++    }
++    elseif($cs_main['mod'] != 'install')
++      cs_error($cache_file, 'cs_cache_save - Unable to write cache file');
+   }
+   elseif($cs_main['mod'] != 'install')
+     cs_error('uploads/cache/' . $token . '.tmp', 'cs_cache_save - Unable to write cache file');
+diff --git a/system/cache/none.php b/system/cache/none.php
+index cb29567..11f9bdb 100644
+--- a/system/cache/none.php
++++ b/system/cache/none.php
+@@ -2,6 +2,15 @@
+ // ClanSphere 2010 - www.clansphere.net
+ // $Id$
+ 
++function cs_cache_token($name, $ttl = 0) {
++
++  $token = empty($ttl) ? $name : 'ttl_' . $name;
++  $token = preg_replace("=[^a-z0-9._-]=i", '_', (string) $token);
++  $token = trim($token, '._');
++
++  return empty($token) ? 'cache' : $token;
++}
++
+ function cs_cache_clear() {
+ 
+   $content = cs_paths('uploads/cache');
+@@ -17,7 +26,7 @@ function cs_cache_clear() {
+ 
+ function cs_cache_delete($name, $ttl = 0) {
+ 
+-  $token = empty($ttl) ? $name : 'ttl_' . $name;
++  $token = cs_cache_token($name, $ttl);
+   if(file_exists('uploads/cache/' . $token . '.tmp'))
+     unlink('uploads/cache/' . $token . '.tmp');
+ }
+@@ -43,6 +52,7 @@ function cs_cache_load($name, $ttl = 0) {
+ function cs_cache_save($name, $content, $ttl = 0) {
+ 
+   global $cs_main;
++  $token = cs_cache_token($name, $ttl);
+   if(is_bool($content))
+     cs_error($name, 'cs_cache_save - It is not allowed to just store a boolean');
+   elseif(!is_writeable('uploads/cache/') AND $cs_main['mod'] != 'install')
+diff --git a/system/core/abcode.php b/system/core/abcode.php
+index 213bfed..66fe2a3 100644
+--- a/system/core/abcode.php
++++ b/system/core/abcode.php
+@@ -16,7 +16,7 @@ function cs_abcode_inhtml($string, $mode = 0) {
+ 
+ function cs_abcode_button($name, $title, $tag1, $tag2, $content) {
+ 
+-  $javascript = "javascript:abc_insert('" . $tag1 . "','" . $tag2 . "','" . $name . "','')";
++  $javascript = "javascript:abc_insert('" . cs_jsquote($tag1) . "','" . cs_jsquote($tag2) . "','" . cs_jsquote($name) . "','')";
+   return cs_html_link($javascript, $content, 0, 0, $title) . ' ';
+ }
+ 
+@@ -65,11 +65,11 @@ function cs_abcode_smileys($name, $keep = 0) {
+ 
+   while($abc_while > $run) {
+     $data['var']['img' . ($run + 1)] = cs_html_img('uploads/abcode/' . $loop_abc[$run]['abcode_file']);
+-    $data['var']['pattern' . ($run + 1)] = $loop_abc[$run]['abcode_pattern'];
++    $data['var']['pattern' . ($run + 1)] = cs_jsquote($loop_abc[$run]['abcode_pattern']);
+     $run++;
+   }
+ 
+-  $data['var']['textarea'] = $name;
++  $data['var']['textarea'] = cs_jsquote($name);
+ 
+   return empty($abc_count) ? '' : cs_subtemplate(__FILE__, $data, 'abcode', 'imgbox');
+ }
+@@ -277,17 +277,7 @@ function cs_abcode_html($matches) {
+ 
+ function cs_abcode_eval($matches) {
+ 
+-  global $cs_main;
+-  $matches[1] = str_replace('<br />',"\r\n",$matches[1]);
+-  $matches[1] = html_entity_decode($matches[1], ENT_QUOTES, $cs_main['charset']);
+-  $matches[1] = str_replace(array('<?php','<?','?>'),'',$matches[1]);
+-
+-  ob_start();
+-  eval($matches[1]);
+-  $content = ob_get_contents();
+-  ob_end_clean();
+-  $content = str_replace(array("\n","\r"),'',$content);
+-  return $content;
++  return '';
+ }
+ 
+ function cs_abcode_flag ($matches) {
+diff --git a/system/core/account.php b/system/core/account.php
+index 7058f56..9168410 100644
+--- a/system/core/account.php
++++ b/system/core/account.php
+@@ -10,8 +10,7 @@ function cs_login_cookies($userid = 0, $use_old_hash = 0) {
+   $thishash = empty($use_old_hash) ? '' : $use_old_hash;
+ 
+   if(!empty($userid) AND empty($use_old_hash)) {
+-    $pattern = '1234567890abcdefghijklmnpqrstuvwxyz';
+-    for($i=0;$i<34;$i++) { $thishash .= $pattern{rand(0,34)}; }
++    $thishash = cs_random_string(64);
+ 
+     $cells = array('users_cookietime', 'users_cookiehash');
+     $content = array($thistime, $thishash);
+@@ -27,9 +26,17 @@ function cs_login_cookies($userid = 0, $use_old_hash = 0) {
+     }
+   }
+ 
+-  setcookie('cs_userid', $userid, $lifetime, $cs_main['cookie']['path'], $cs_main['cookie']['domain']);
+-  setcookie('cs_cookietime', $thistime, $lifetime, $cs_main['cookie']['path'], $cs_main['cookie']['domain']);
+-  setcookie('cs_cookiehash', $thishash, $lifetime, $cs_main['cookie']['path'], $cs_main['cookie']['domain']);
++  $secure = !empty($_SERVER['HTTPS']) AND strtolower($_SERVER['HTTPS']) != 'off';
++  if(version_compare(phpversion(),'5.2.0','>')) {
++    setcookie('cs_userid', $userid, $lifetime, $cs_main['cookie']['path'], $cs_main['cookie']['domain'], $secure, true);
++    setcookie('cs_cookietime', $thistime, $lifetime, $cs_main['cookie']['path'], $cs_main['cookie']['domain'], $secure, true);
++    setcookie('cs_cookiehash', $thishash, $lifetime, $cs_main['cookie']['path'], $cs_main['cookie']['domain'], $secure, true);
++  }
++  else {
++    setcookie('cs_userid', $userid, $lifetime, $cs_main['cookie']['path'], $cs_main['cookie']['domain']);
++    setcookie('cs_cookietime', $thistime, $lifetime, $cs_main['cookie']['path'], $cs_main['cookie']['domain']);
++    setcookie('cs_cookiehash', $thishash, $lifetime, $cs_main['cookie']['path'], $cs_main['cookie']['domain']);
++  }
+ }
+ 
+ global $cs_lang, $cs_main, $login;
+@@ -41,8 +48,10 @@ $noacc   = array('users_id' => 0, 'users_pwd' => '', 'users_cookiehash' => '', '
+ $account = $noacc;
+ 
+ # Send cookie only by http protocol (available in PHP 5.2.0 or higher)
+-if(version_compare(phpversion(),'5.2.0','>'))
+-  session_set_cookie_params(0,$cs_main['cookie']['path'],$cs_main['cookie']['domain'],FALSE,TRUE);
++if(version_compare(phpversion(),'5.2.0','>')) {
++  $secure = !empty($_SERVER['HTTPS']) AND strtolower($_SERVER['HTTPS']) != 'off';
++  session_set_cookie_params(0,$cs_main['cookie']['path'],$cs_main['cookie']['domain'],$secure,TRUE);
++}
+ else
+   session_set_cookie_params(0,$cs_main['cookie']['path'],$cs_main['cookie']['domain']);
+ 
+@@ -50,6 +59,20 @@ session_name('cs' . md5($cs_main['cookie']['domain']));
+ session_start();
+ 
+ # xsrf protection
++if($cs_main['xsrf_protection'] === TRUE AND empty($_POST) AND !empty($_GET) AND cs_xsrf_needs_get_key($_GET)) {
++  $needed_keys = isset($_SESSION['cs_xsrf_keys']) ? $_SESSION['cs_xsrf_keys'] : array();
++  $given_key = isset($_GET['cs_xsrf_key']) ? $_GET['cs_xsrf_key'] : '';
++  if(empty($given_key) OR !in_array($given_key, $needed_keys)) {
++    $_SESSION['cs_xsrf_keys'] = array();
++    $referer = empty($_SERVER['HTTP_REFERER']) ? 'empty' : $_SERVER['HTTP_REFERER'];
++
++    if(!empty($cs_main['developer']))
++      cs_error(__FILE__, 'XSRF Protection triggered for GET, Referer: ' . $referer);
++
++    cs_redirect(false, $cs_main['def_mod'], $cs_main['def_action']);
++  }
++}
++
+ if($cs_main['xsrf_protection']===TRUE && !empty($_POST)) {
+   $needed_keys = isset($_SESSION['cs_xsrf_keys']) ? $_SESSION['cs_xsrf_keys'] : array();
+   $given_key = isset($_POST['cs_xsrf_key']) ? $_POST['cs_xsrf_key'] : '';
+@@ -101,7 +124,7 @@ if(empty($_SESSION['users_id'])) {
+         $login['error'] = 'closed'; 
+       elseif($login['method'] == 'cookie' AND ($login['cookietime'] < $login_db['users_cookietime'] OR $login['cookietime'] > cs_time()))
+         $login['error'] = 'user_login_notfound';
+-      elseif($login['method'] == 'cookie' AND $login_db['users_cookiehash'] != $login['cookiehash'])
++      elseif($login['method'] == 'cookie' AND !cs_hash_equals($login_db['users_cookiehash'], $login['cookiehash']))
+         $login['error'] = 'user_login_notfound';
+       else {
+         $login['mode'] = TRUE;
+@@ -121,7 +144,7 @@ if(empty($_SESSION['users_id'])) {
+       $login['method'] = 'form_cookie';
+       cs_login_cookies($login_db['users_id'], true);
+     }
+-  session_regenerate_id(session_id());
++    session_regenerate_id(true);
+     unset($login_db);
+   }
+ }
+@@ -143,11 +166,11 @@ if(!empty($_SESSION['users_id'])) {
+ 
+ if(isset($_COOKIE['cs_userid'])) {
+   # refresh cookie lifetime after a while
+-  if(isset($_COOKIE['cs_cookiehash']) AND isset($_COOKIE['cs_cookietime']) AND $_COOKIE['cs_cookietime'] < ($cs_main['cookie']['lifetime'] - 43200))
++  if(isset($_COOKIE['cs_cookiehash']) AND isset($_COOKIE['cs_cookietime']) AND $_COOKIE['cs_cookietime'] < (cs_time() - 43200))
+     cs_login_cookies($_COOKIE['cs_userid'], $_COOKIE['cs_cookiehash']);
+ 
+   # empty old and bad cookie data
+-  if(empty($_COOKIE['cs_cookiehash']) OR $_COOKIE['cs_cookiehash'] != $account['users_cookiehash'])
++  if(empty($_COOKIE['cs_cookiehash']) OR !cs_hash_equals($account['users_cookiehash'], $_COOKIE['cs_cookiehash']))
+     cs_login_cookies();
+ }
+ 
+diff --git a/system/core/functions.php b/system/core/functions.php
+index 0ff2742..4d7e9fa 100644
+--- a/system/core/functions.php
++++ b/system/core/functions.php
+@@ -160,18 +160,15 @@ function cs_content_lang () {
+   }
+ 
+   if(!empty($lang_new)) {
+-    $allow = 0;
+-    $languages = cs_checkdirs('lang');
+-
+-    foreach($languages as $mod)
+-      if($mod['dir'] == $lang_new)
+-        $allow++;
+-
+-    $lang = empty($allow) ? $cs_main['def_lang'] : $lang_new;
++    $lang = cs_safe_lang($lang_new);
+ 
+     # update language changes
+     if(empty($account['users_id'])) {
+-      setcookie('cs_lang', $lang, $cs_main['cookie']['lifetime'], $cs_main['cookie']['path'], $cs_main['cookie']['domain']);
++      $secure = !empty($_SERVER['HTTPS']) AND strtolower($_SERVER['HTTPS']) != 'off';
++      if(version_compare(phpversion(),'5.2.0','>'))
++        setcookie('cs_lang', $lang, $cs_main['cookie']['lifetime'], $cs_main['cookie']['path'], $cs_main['cookie']['domain'], $secure, true);
++      else
++        setcookie('cs_lang', $lang, $cs_main['cookie']['lifetime'], $cs_main['cookie']['path'], $cs_main['cookie']['domain']);
+     }
+     elseif($account['users_lang'] != $lang) {
+       $users_cells = array('users_lang');
+@@ -180,6 +177,7 @@ function cs_content_lang () {
+     }
+   }
+ 
++  $lang = cs_safe_lang($lang);
+   require_once 'lang/' . $lang . '/system/comlang.php';
+   return $lang;
+ }
+@@ -194,7 +192,7 @@ function cs_init($predefined) {
+   @ini_set('session.use_trans_sid','0');
+   @ini_set('session.use_cookies','1');
+   @ini_set('session.use_only_cookies','1');
+-  @ini_set('display_errors','on');
++  @ini_set('display_errors','off');
+ 
+   $phpversion = phpversion();
+   if(version_compare($phpversion, '5.1', '>='))
+@@ -363,9 +361,6 @@ function cs_ajaxwrap() {
+ 
+     $json['location'] = $uri;
+ 
+-    if(isset($cs_main['ajax_js'])) {
+-      $json['scripts'] = $cs_main['ajax_js'];
+-    }
+     $json['content'] = $content;
+   }
+ 
+@@ -422,7 +417,7 @@ function cs_log($target,$content) {
+       stream_encoding($save_error, $cs_main['charset']);
+     fwrite($save_error,$log);
+     fclose($save_error);
+-    chmod($log_file, 0755);
++    chmod($log_file, 0644);
+   }
+   else {
+     $msg = 'cs_log - Unable to write into directory -> ' . $full_path;
+diff --git a/system/core/servervars.php b/system/core/servervars.php
+index ccd8a17..3043089 100644
+--- a/system/core/servervars.php
++++ b/system/core/servervars.php
+@@ -25,8 +25,11 @@ $cs_main['php_self']['dirname'] = $cs_main['php_self']['dirname'] == '/' ? '/' :
+   // workaround since filename is available as of php 5.2.0
+ if(!isset($cs_main['php_self']['filename']))
+   $cs_main['php_self']['filename'] = substr($cs_main['php_self']['basename'], 0, strrpos($cs_main['php_self']['basename'], '.'));
+-$domain = htmlspecialchars($_SERVER['HTTP_HOST'], ENT_QUOTES);
+-$cs_main['php_self']['website'] = 'http://' . $domain;
++$domain = empty($_SERVER['HTTP_HOST']) ? '' : $_SERVER['HTTP_HOST'];
++$domain = preg_replace("=[^a-z0-9.:-]=i", '', $domain);
++$domain = htmlspecialchars($domain, ENT_QUOTES);
++$scheme = (!empty($_SERVER['HTTPS']) AND strtolower($_SERVER['HTTPS']) != 'off') ? 'https://' : 'http://';
++$cs_main['php_self']['website'] = $scheme . $domain;
+ 
+ # handle mod_rewrite params and split them for default usage
+ if(empty($_GET['mod']) AND empty($_GET['action'])) {
+diff --git a/system/core/templates.php b/system/core/templates.php
+index 47bee44..6687724 100644
+--- a/system/core/templates.php
++++ b/system/core/templates.php
+@@ -126,22 +126,17 @@ function cs_subtemplate_check($mod, $action) {
+ }
+ 
+ function cs_xsrf_protection_field($matches) {
+-  global $cs_main;
+   static $xsrf_key;
+-  if(!isset($_SESSION['cs_xsrf_keys']) || !is_array($_SESSION['cs_xsrf_keys'])) {
+-    $_SESSION['cs_xsrf_keys'] = array();
+-  }
+   if(empty($xsrf_key)) {
+     
+     # disable browser / proxy caching
+     header("Cache-Control: max-age=0, no-cache, no-store, must-revalidate");
+     header("Expires: Mon, 26 Jul 1997 05:00:00 GMT");
+     
+-    $xsrf_key = ($cs_main['ajaxrequest']&&isset($_REQUEST['xhr_nocontent'])&&!empty($_SESSION['cs_xsrf_keys'])) ? end($_SESSION['cs_xsrf_keys']) : md5(microtime() . rand());
+-    $_SESSION['cs_xsrf_keys'][] = $xsrf_key;
++    $xsrf_key = cs_xsrf_key(1);
+   }
+   
+-  return $matches[0] . "\n" . '<div style="display:none;"><input type="hidden" name="cs_xsrf_key" value="' . end($_SESSION['cs_xsrf_keys']) . '" /></div>' . "\n";
++  return $matches[0] . "\n" . '<div style="display:none;"><input type="hidden" name="cs_xsrf_key" value="' . cs_html_attr($xsrf_key) . '" /></div>' . "\n";
+ }
+ 
+ function cs_wrap_templatefile($matches)
+@@ -265,7 +260,7 @@ function cs_redirect($message, $mod, $action = 'manage', $more = '', $id = 0, $i
+   foreach($persistent_params AS $p) {
+     if(isset($_REQUEST[$p])) {
+       $more[0] .= !empty($more[0]) ? '&' : '';
+-      $more[0] .= $p . '=' . $_REQUEST[$p];
++      $more[0] .= $p . '=' . rawurlencode($_REQUEST[$p]);
+     }
+   }
+ 
+@@ -274,6 +269,7 @@ function cs_redirect($message, $mod, $action = 'manage', $more = '', $id = 0, $i
+   $more = empty($more) ? 0 : $more;
+ 
+   $url = str_replace('&amp;', '&', cs_url($mod, $action, $more));
++  $url = str_replace(array("\r", "\n"), '', $url);
+ 
+   header('Location: ' . $url);
+   exit();
+diff --git a/system/core/tools.php b/system/core/tools.php
+index 537a90e..30ada62 100644
+--- a/system/core/tools.php
++++ b/system/core/tools.php
+@@ -2,6 +2,211 @@
+ // ClanSphere 2010 - www.clansphere.net
+ // $Id$
+ 
++function cs_hash_equals($known, $given) {
++
++  if(function_exists('hash_equals'))
++    return hash_equals((string) $known, (string) $given);
++
++  $known = (string) $known;
++  $given = (string) $given;
++  if(strlen($known) !== strlen($given))
++    return false;
++
++  $result = 0;
++  for($run = 0; $run < strlen($known); $run++)
++    $result |= ord($known{$run}) ^ ord($given{$run});
++
++  return $result === 0;
++}
++
++function cs_random_string($length = 32) {
++
++  $length = (int) $length;
++  if($length < 1)
++    $length = 32;
++
++  $bytes = '';
++  if(function_exists('random_bytes')) {
++    try {
++      $bytes = random_bytes($length);
++    }
++    catch(Exception $e) {
++      $bytes = '';
++    }
++  }
++  if($bytes === '' AND function_exists('openssl_random_pseudo_bytes')) {
++    $strong = false;
++    $bytes = openssl_random_pseudo_bytes($length, $strong);
++    if(empty($strong))
++      $bytes = '';
++  }
++
++  if($bytes === '') {
++    for($run = 0; $run < $length; $run++)
++      $bytes .= chr(mt_rand(0, 255));
++  }
++
++  return substr(bin2hex($bytes), 0, $length);
++}
++
++function cs_xsrf_key($new = 0) {
++
++  if(session_id() === '')
++    return '';
++
++  if(!isset($_SESSION['cs_xsrf_keys']) OR !is_array($_SESSION['cs_xsrf_keys']))
++    $_SESSION['cs_xsrf_keys'] = array();
++
++  if(empty($new) AND !empty($_SESSION['cs_xsrf_keys']))
++    return end($_SESSION['cs_xsrf_keys']);
++
++  $key = cs_random_string(40);
++  $_SESSION['cs_xsrf_keys'][] = $key;
++
++  if(count($_SESSION['cs_xsrf_keys']) > 25)
++    $_SESSION['cs_xsrf_keys'] = array_slice($_SESSION['cs_xsrf_keys'], -25);
++
++  return $key;
++}
++
++function cs_xsrf_needs_get_key($params, $mod = 0, $action = 0) {
++
++  global $cs_main;
++  $dangerous = array(
++    'active' => 1,
++    'activate' => 1,
++    'agree' => 1,
++    'clear' => 1,
++    'confirm' => 1,
++    'deactive' => 1,
++    'del' => 1,
++    'delete' => 1,
++    'delabo' => 1,
++    'delall' => 1,
++    'del_id' => 1,
++    'done' => 1,
++    'fix' => 1,
++    'hide' => 1,
++    'newabo' => 1,
++    'turn' => 1,
++    'unhide' => 1
++  );
++
++  if(empty($mod) AND isset($cs_main['mod']))
++    $mod = $cs_main['mod'];
++  if(empty($action) AND isset($cs_main['action']))
++    $action = $cs_main['action'];
++
++  if(is_array($params)) {
++    if($mod == 'board' AND $action == 'sort' AND (isset($params['board']) OR isset($params['cat'])))
++      return true;
++
++    if($mod == 'board' AND $action == 'reportdone' AND isset($params['id']))
++      return true;
++
++    if($mod == 'messages' AND $action == 'archiv' AND isset($params['id']))
++      return true;
++
++    if($mod == 'wars' AND $action == 'rounds' AND (isset($params['up']) OR isset($params['down'])))
++      return true;
++
++    foreach($params AS $key => $value) {
++      if(isset($dangerous[$key]))
++        return true;
++    }
++    return false;
++  }
++
++  $params = str_replace('&amp;', '&', (string) $params);
++  if($mod == 'board' AND $action == 'sort' AND preg_match('=(^|[&/])(board|cat)(=|/)=i', $params))
++    return true;
++
++  if($mod == 'board' AND $action == 'reportdone' AND preg_match('=(^|[&/])id(=|/)=i', $params))
++    return true;
++
++  if($mod == 'messages' AND $action == 'archiv' AND preg_match('=(^|[&/])id(=|/)=i', $params))
++    return true;
++
++  if($mod == 'wars' AND $action == 'rounds' AND preg_match('=(^|[&/])(up|down)(=|/)=i', $params))
++    return true;
++
++  foreach($dangerous AS $key => $value) {
++    if(preg_match('=(^|[&/])' . preg_quote($key, '=') . '($|[=/&])=i', $params))
++      return true;
++  }
++
++  return false;
++}
++
++function cs_xsrf_url_more($more, $mod = 0, $action = 0) {
++
++  global $cs_main;
++
++  if(empty($more) OR empty($cs_main['xsrf_protection']) OR !cs_xsrf_needs_get_key($more, $mod, $action))
++    return $more;
++
++  if(strpos(str_replace('&amp;', '&', (string) $more), 'cs_xsrf_key=') !== false)
++    return $more;
++
++  $key = cs_xsrf_key();
++  if(empty($key))
++    return $more;
++
++  return $more . '&amp;cs_xsrf_key=' . rawurlencode($key);
++}
++
++function cs_safe_filename($filename) {
++
++  $filename = basename(str_replace('\\', '/', (string) $filename));
++  $filename = preg_replace("=[^a-z0-9._-]=i", '_', $filename);
++  $filename = trim($filename, '._');
++
++  return empty($filename) ? false : $filename;
++}
++
++function cs_safe_path($base, $path, $must_exist = 0) {
++
++  $base_real = realpath($base);
++  if($base_real === false)
++    return false;
++
++  $path = str_replace('\\', '/', (string) $path);
++  $path = preg_replace("=/+=", '/', $path);
++  $target = rtrim($base_real, '\\/') . '/' . ltrim($path, '/');
++  $target_real = realpath($target);
++
++  if($target_real === false) {
++    if(!empty($must_exist))
++      return false;
++
++    $parent_real = realpath(dirname($target));
++    if($parent_real === false)
++      return false;
++    $target_real = rtrim($parent_real, '\\/') . '/' . basename($target);
++  }
++
++  $base_cmp = strtolower(str_replace('\\', '/', rtrim($base_real, '\\/') . '/'));
++  $target_cmp = strtolower(str_replace('\\', '/', $target_real));
++  if(strpos($target_cmp . (is_dir($target_real) ? '/' : ''), $base_cmp) !== 0)
++    return false;
++
++  return $target_real;
++}
++
++function cs_jsquote($value) {
++
++  return str_replace(array("\\", "'", "\r", "\n", '</'), array("\\\\", "\\'", "\\r", "\\n", '<\/'), (string) $value);
++}
++
++function cs_clean_url_part($url) {
++
++  $url = trim(str_replace(array("\r", "\n", "\0"), '', (string) $url));
++  $url = preg_replace("=^https?://=i", '', $url);
++  $url = str_replace(array('"', "'", '<', '>'), '', $url);
++
++  return $url;
++}
++
+ function cs_addons($modul,$action,$id,$modul_now) {
+ 
+   global $account, $cs_main;
+@@ -56,8 +261,9 @@ function cs_ajaxfiles_clear() {
+ 
+   if (!empty($_SESSION['ajaxuploads'])) {
+     foreach ($_SESSION['ajaxuploads'] as $name) {
+-      if(file_exists('uploads/cache/' . $name))
+-        unlink('uploads/cache/' . $name);
++      $target = cs_safe_path('uploads/cache', $name, 1);
++      if($target !== false AND is_file($target))
++        unlink($target);
+     }
+     unset($_SESSION['ajaxuploads']);
+   }
+@@ -276,7 +482,11 @@ function cs_files() {
+ 
+   $files = array();
+   foreach ($_SESSION['ajaxuploads'] as $key => $name) {
+-    $files[$key]['tmp_name'] = 'uploads/cache/' . $name;
++    $safe_name = cs_safe_filename($name);
++    $tmp_name = $safe_name === false ? false : cs_safe_path('uploads/cache', $safe_name, 1);
++    if($tmp_name === false OR !is_file($tmp_name))
++      continue;
++    $files[$key]['tmp_name'] = $tmp_name;
+     $files[$key]['name'] = $name;
+     $files[$key]['size'] = filesize($files[$key]['tmp_name']);
+     $files[$key]['type'] = cs_mimetype($files[$key]['tmp_name']);
+@@ -339,11 +549,12 @@ function cs_mail($email,$title,$message,$from = 0,$type = 0) {
+ function cs_mimetype ($file) {
+ 
+   global $cs_main;
++  $target = is_file($file) ? $file : $cs_main['def_path'] . '/' . $file;
+   if (function_exists('mime_content_type'))
+-    return mime_content_type($cs_main['def_path'] . '/' . $file);
++    return mime_content_type($target);
+ 
+   if (function_exists('finfo_open') && $fp = finfo_open(FILEINFO_MIME)) {
+-    $return = finfo_file($fp, $file);
++    $return = finfo_file($fp, $target);
+     finfo_close($fp);
+     return $return;
+   }
+@@ -444,6 +655,29 @@ function cs_paths($dir) {
+   return $path_array;
+ }
+ 
++function cs_safe_lang($lang = 0) {
++
++  global $cs_main;
++  $fallback = empty($cs_main['def_lang']) ? 'English' : $cs_main['def_lang'];
++  $paths = cs_paths('lang');
++
++  $lang = (string) $lang;
++  if(preg_match("=^[_a-z0-9-]+$=i", $lang) AND isset($paths[$lang]) AND file_exists('lang/' . $lang . '/system/main.php'))
++    return $lang;
++
++  if(preg_match("=^[_a-z0-9-]+$=i", $fallback) AND isset($paths[$fallback]) AND file_exists('lang/' . $fallback . '/system/main.php'))
++    return $fallback;
++
++  if(isset($paths['English']) AND file_exists('lang/English/system/main.php'))
++    return 'English';
++
++  foreach($paths AS $dir => $value)
++    if(preg_match("=^[_a-z0-9-]+$=i", $dir) AND file_exists('lang/' . $dir . '/system/main.php'))
++      return $dir;
++
++  return '';
++}
++
+ function cs_sort($mod,$action,$start,$where,$up,$active = 0,$more = 0) {
+ 
+   $down = $up + 1;
+@@ -489,6 +723,7 @@ function cs_translate($mod, $main = 0) {
+ 
+   global $account, $cs_main;
+   $lang = empty($account['users_lang']) ? $cs_main['def_lang'] : $account['users_lang'];
++  $lang = cs_safe_lang($lang);
+   static $lang_main = 0;
+   static $lang_mods = array();
+   $cs_lang = array();
+@@ -519,9 +754,17 @@ function cs_translate($mod, $main = 0) {
+ function cs_unlink($mod, $filename, $sub = '') {
+ 
+   global $cs_main;
++  $mod = trim(str_replace('\\', '/', (string) $mod), '/');
++  if(!preg_match("=^[a-z0-9_/-]+$=i", $mod) OR strpos($mod, '..') !== false)
++    return FALSE;
++  $sub = $sub == '' ? '' : trim(str_replace('\\', '/', (string) $sub), '/') . '/';
+   $path = $cs_main['def_path'] . '/uploads/' . $mod . '/';
+-  $path = $sub == '' ? $path : $path . str_replace('..','',$sub) . '/';
+-  $target = $path . str_replace('..','',$filename);
++  $filename = cs_safe_filename($filename);
++  if($filename === false)
++    return FALSE;
++  $target = cs_safe_path($path, $sub . $filename, 1);
++  if($target === false)
++    return FALSE;
+   if(is_file($target)) {
+     if(unlink($target)) {
+       return TRUE;
+@@ -538,11 +781,25 @@ function cs_unlink($mod, $filename, $sub = '') {
+ function cs_upload($mod,$filename,$upname, $ajaxclean = 1) {
+ 
+   global $cs_main;
++  $mod = trim(str_replace('\\', '/', (string) $mod), '/');
++  if(!preg_match("=^[a-z0-9_/-]+$=i", $mod) OR strpos($mod, '..') !== false) {
++    cs_error(__FILE__, 'cs_upload - Invalid module path');
++    return false;
++  }
++  $filename = cs_safe_filename($filename);
++  if($filename === false) {
++    cs_error(__FILE__, 'cs_upload - Invalid file name');
++    return false;
++  }
+   $path = $cs_main['def_path'] . '/uploads/' . $mod . '/';
+-  $target = $path . $filename;
++  $target = cs_safe_path($path, $filename);
++  if($target === false) {
++    cs_error(__FILE__, 'cs_upload - Invalid target path');
++    return false;
++  }
+   $bool = empty($_SESSION['ajaxuploads']) ? move_uploaded_file($upname,$target) : rename($upname,$target);
+   if($bool) {
+-    chmod($target,0755);
++    chmod($target,0644);
+     $return = true;
+   } else {
+     $message = is_writable($path) ? 'cs_upload - Failed to save the file' :
+@@ -557,6 +814,7 @@ function cs_upload($mod,$filename,$upname, $ajaxclean = 1) {
+ function cs_url($mod, $action = 'list', $more = 0, $base = 0, $placeholder = 0) {
+ 
+   global $cs_main, $account;
++  $more = cs_xsrf_url_more($more, $mod, $action);
+   if(!file_exists('mods/' . $mod . '/' . $action . '.php'))
+   {
+     if(empty($placeholder))
+diff --git a/system/output/xhtml_10.php b/system/output/xhtml_10.php
+index c63825c..a7448d2 100644
+--- a/system/output/xhtml_10.php
++++ b/system/output/xhtml_10.php
+@@ -16,6 +16,42 @@ function cs_html_jabbermail($mail, $link = '')
+   return cs_ajax_mail($mail, $link);
+ }
+ 
++function cs_html_attr($value)
++{
++  $value = str_replace(array("\r", "\n", "\0"), '', (string) $value);
++  $value = preg_replace('/&(?![a-zA-Z][a-zA-Z0-9]+;|#[0-9]+;|#x[0-9a-fA-F]+;)/', '&amp;', $value);
++  return str_replace(array('"', "'", '<', '>'), array('&quot;', '&#039;', '&lt;', '&gt;'), $value);
++}
++
++function cs_html_uri($url, $allow_javascript = 0)
++{
++  $url = trim(str_replace(array("\r", "\n", "\0"), '', (string) $url));
++
++  if(preg_match('=^([a-z][a-z0-9+.-]*):=i', $url, $scheme_match)) {
++    $scheme = strtolower($scheme_match[1]);
++    $allowed = array(
++      'http' => 1,
++      'https' => 1,
++      'ftp' => 1,
++      'mailto' => 1,
++      'skype' => 1,
++      'hlsw' => 1,
++      'steam' => 1,
++      'teamspeak' => 1,
++      'ts3server' => 1,
++      'tmtp' => 1
++    );
++
++    if($scheme == 'javascript' AND !empty($allow_javascript) AND preg_match('=^javascript:abc_[a-z_]*\(=i', $url))
++      return $url;
++
++    if(empty($allowed[$scheme]))
++      return '#';
++  }
++
++  return $url;
++}
++
+ function cs_html_br($run = 1)
+ {
+   $var = '';
+@@ -36,20 +72,21 @@ function cs_html_img($url, $height = 0, $width = 0, $more = 0, $alt = '')
+ {
+   global $cs_main;
+   $internal = '';
++  $url = cs_html_uri($url);
+   if(strpos($url, '://') === false) {
+     $prefix = strpos($url, $cs_main['php_self']['dirname']);
+     if($prefix === false OR $prefix > 1) {
+       $internal = $cs_main['php_self']['dirname'];
+     }
+   }
+-  $var = "<img src=\"" . $internal . str_replace(' ', '%20', $url) . "\" ";
++  $var = "<img src=\"" . cs_html_attr($internal . str_replace(' ', '%20', $url)) . "\" ";
+   if (!empty($height) or !empty($width)) {
+     $var .= 'style="';
+     if (!empty($width)) {
+-      $var .= 'width:' . $width . 'px;';
++      $var .= 'width:' . (int) $width . 'px;';
+     }
+     if (!empty($height)) {
+-      $var .= 'height:' . $height . 'px;';
++      $var .= 'height:' . (int) $height . 'px;';
+     }
+     $var .= '" ';
+   }  
+@@ -57,13 +94,13 @@ function cs_html_img($url, $height = 0, $width = 0, $more = 0, $alt = '')
+   {
+     $var .= $more . ' ';
+   }
+-  return $var . "alt=\"" . $alt . "\" />";
++  return $var . "alt=\"" . cs_html_attr($alt) . "\" />";
+ }
+ 
+ function cs_html_link($url, $link, $use_target = 1, $class = 0, $title = 0, $more = 0)
+ {
+   global $cs_main;
+-  $url = str_replace('http://http://', 'http://', $url);
++  $url = cs_html_uri(str_replace('http://http://', 'http://', $url), 1);
+   if (!empty($cs_main['rss']) and strpos($url, '://') === false)
+   {
+     if (!empty($cs_main['php_self']['dirname']) and strpos($url, $cs_main['php_self']['dirname']) === false)
+@@ -75,18 +112,18 @@ function cs_html_link($url, $link, $use_target = 1, $class = 0, $title = 0, $mor
+       $url = $cs_main['php_self']['website'] . $url;
+     }
+   }
+-  $var = "<a href=\"" . str_replace(' ', '%20', $url) . "\"";
++  $var = "<a href=\"" . cs_html_attr(str_replace(' ', '%20', $url)) . "\"";
+   if (!empty($use_target) and empty($cs_main['rss']))
+   {
+     $var .= " target=\"_blank\"";
+   }
+   if (!empty($class))
+   {
+-    $var .= " class=\"" . $class . "\"";
++    $var .= " class=\"" . cs_html_attr($class) . "\"";
+   }
+   if (!empty($title))
+   {
+-    $var .= " title=\"" . $title . "\"";
++    $var .= " title=\"" . cs_html_attr($title) . "\"";
+   }
+   if (!empty($more))
+   {
+@@ -97,14 +134,14 @@ function cs_html_link($url, $link, $use_target = 1, $class = 0, $title = 0, $mor
+ 
+ function cs_html_anchor($name, $text = '', $more = '')
+ {
+-  return "<a href=\"#\" id=\"" . $name . "\"" . $more . " >" . $text . "</a>";
++  return "<a href=\"#\" id=\"" . cs_html_attr($name) . "\"" . $more . " >" . $text . "</a>";
+ }
+ 
+ function cs_html_select($func, $name = '', $more = 0)
+ {
+   if (!empty($func))
+   {
+-    $var = "<select name=\"" . $name . "\" class=\"form\"";
++    $var = "<select name=\"" . cs_html_attr($name) . "\" class=\"form\"";
+     if (!empty($more))
+     {
+       $var .= ' ' . $more;
+@@ -119,18 +156,16 @@ function cs_html_select($func, $name = '', $more = 0)
+ 
+ function cs_html_option($name, $value, $select = 0, $style = 0)
+ {
+-  global $cs_main;
+-  $value = htmlspecialchars($value, ENT_QUOTES, $cs_main['charset']);
+-  $var = "<option value=\"" . $value . "\"";
++  $var = "<option value=\"" . cs_html_attr($value) . "\"";
+   if (!empty($style))
+   {
+-    $var .= " style=\"" . $style . "\"";
++    $var .= " style=\"" . cs_html_attr($style) . "\"";
+   }
+   if (!empty($select))
+   {
+     $var .= " selected=\"selected\"";
+   }
+-  return $var . '>' . $name . "</option>\n";
++  return $var . '>' . cs_html_attr($name) . "</option>\n";
+ }
+ 
+ function cs_html_underline($func)
+diff --git a/uploads/.htaccess b/uploads/.htaccess
+index 80234fa..44bdb88 100644
+--- a/uploads/.htaccess
++++ b/uploads/.htaccess
+@@ -1,5 +1,5 @@
+-## Disallow PHP inside all upload directories
+-<Files ~ ".*\.php$">
++## Disallow server-side scripts inside all upload directories
++<FilesMatch "\.(php[0-9]?|phtml|phar|shtml|cgi|pl)$">
+   Order deny,allow
+   Deny from all
+-</Files>
+\ No newline at end of file
++</FilesMatch>
+diff --git a/uploads/gallery/.htaccess b/uploads/gallery/.htaccess
+index 75a6473..9e7c047 100644
+--- a/uploads/gallery/.htaccess
++++ b/uploads/gallery/.htaccess
+@@ -2,3 +2,8 @@ AuthUserFile /.htpasswd
+ AuthName Security
+ AuthType Basic
+ require valid-user
++
++<FilesMatch "\.(php[0-9]?|phtml|phar|shtml|cgi|pl)$">
++  Order deny,allow
++  Deny from all
++</FilesMatch>
+diff --git a/uploads/gallery/web.config b/uploads/gallery/web.config
+index d0a13a2..d01fabf 100644
+--- a/uploads/gallery/web.config
++++ b/uploads/gallery/web.config
+@@ -6,6 +6,19 @@
+             <authorization>
+                 <add accessType="Deny" users="?" />
+             </authorization>
++            <requestFiltering>
++                <fileExtensions>
++                    <add fileExtension=".php" allowed="false" />
++                    <add fileExtension=".php3" allowed="false" />
++                    <add fileExtension=".php4" allowed="false" />
++                    <add fileExtension=".php5" allowed="false" />
++                    <add fileExtension=".phtml" allowed="false" />
++                    <add fileExtension=".phar" allowed="false" />
++                    <add fileExtension=".shtml" allowed="false" />
++                    <add fileExtension=".cgi" allowed="false" />
++                    <add fileExtension=".pl" allowed="false" />
++                </fileExtensions>
++            </requestFiltering>
+         </security>
+     </system.webServer>
+ </configuration>
+diff --git a/uploads/web.config b/uploads/web.config
+index 1a74034..6e26260 100644
+--- a/uploads/web.config
++++ b/uploads/web.config
+@@ -6,6 +6,14 @@
+             <requestFiltering>
+                 <fileExtensions>
+                     <add fileExtension=".php" allowed="false" />
++                    <add fileExtension=".php3" allowed="false" />
++                    <add fileExtension=".php4" allowed="false" />
++                    <add fileExtension=".php5" allowed="false" />
++                    <add fileExtension=".phtml" allowed="false" />
++                    <add fileExtension=".phar" allowed="false" />
++                    <add fileExtension=".shtml" allowed="false" />
++                    <add fileExtension=".cgi" allowed="false" />
++                    <add fileExtension=".pl" allowed="false" />
+                 </fileExtensions>
+             </requestFiltering>
+         </security>
+diff --git a/webserver/nginx.conf b/webserver/nginx.conf
+index 4f680e0..2c956c4 100644
+--- a/webserver/nginx.conf
++++ b/webserver/nginx.conf
+@@ -24,6 +24,10 @@ server {
+ 
+   ## Warning: Be sure to set PHP option "cgi.fix_pathinfo" to 0
+ 
++  location ~* ^/uploads/.*\.(php[0-9]?|phtml|phar|shtml|cgi|pl)$ {
++    deny all;
++  }
++
+   location ~ \.php$ {
+     try_files     $uri =404;
+     fastcgi_pass  127.0.0.1:9123;
