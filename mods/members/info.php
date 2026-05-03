@@ -1,5 +1,5 @@
 <?php
-// ClanSphere 2010 - www.clansphere.net
+// OpenClanCMS 2010 - www.clansphere.net
 // $Id$
 
 $cs_lang = cs_translate('members');
@@ -9,8 +9,8 @@ $op_members = cs_sql_option(__FILE__,'members');
 $mod_info['name']    = $cs_lang[$op_members['label']];
 $mod_info['version']  = $cs_main['version_name'];
 $mod_info['released']  = $cs_main['version_date'];
-$mod_info['creator'] = 'ClanSphere';
-$mod_info['team']    = 'ClanSphere';
+$mod_info['creator'] = 'OpenClanCMS';
+$mod_info['team']    = 'OpenClanCMS';
 $mod_info['url']    = 'www.clansphere.net';
 $mod_info['text']    = $cs_lang['modtext'];
 $mod_info['icon']    = 'yast_user_add';

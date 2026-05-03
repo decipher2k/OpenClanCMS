@@ -1,5 +1,5 @@
 <?php
-// ClanSphere 2010 - www.clansphere.net
+// OpenClanCMS 2010 - www.clansphere.net
 // $Id$
 
 $cs_lang = cs_translate('members');
@@ -12,6 +12,7 @@ $cells  = 'sq.squads_id AS squads_id, sq.games_id AS games_id, sq.squads_name AS
 $cells .= 'sq.clans_id AS clans_id, cln.clans_tagpos AS clans_tagpos, sq.squads_text AS squads_text, ';
 $cells .= 'cln.clans_tag AS clans_tag, sq.squads_picture AS squads_picture';
 $cs_squads = cs_sql_select(__FILE__,$tables,$cells,'squads_own = \'1\'','squads_order, squads_name',0,0);
+$cs_squads = is_array($cs_squads) ? $cs_squads : array();
 
 $squads_loop = count($cs_squads);
 $members_count = cs_sql_count(__FILE__,'members',0,'users_id');
@@ -36,6 +37,7 @@ for($sq_run = 0; $sq_run < $squads_loop; $sq_run++) {
   $order = 'mem.members_order ASC, usr.users_nick ASC';
   
   $cs_members = cs_sql_select(__FILE__,$from,$select,$where,$order,0,0);
+  $cs_members = is_array($cs_members) ? $cs_members : array();
   $members_loop = count($cs_members);
   
   $data['squads'][$sq_run]['membercount'] = $members_loop . ' ' . $cs_lang['members'];

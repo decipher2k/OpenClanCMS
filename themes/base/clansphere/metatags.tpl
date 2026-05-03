@@ -1,6 +1,6 @@
 <table class="forum" cellpadding="0" cellspacing="{page:cellspacing}" style="width:{page:width}">
   <tr>
-    <td class="headb">ClanSphere - {lang:metatags}</td>
+    <td class="headb">OpenClanCMS - {lang:metatags}</td>
   </tr>
   <tr>
     <td class="leftb">{lang:generate_metatags}</td>

@@ -1,5 +1,5 @@
 <?php
-// ClanSphere 2010 - www.clansphere.net
+// OpenClanCMS 2010 - www.clansphere.net
 // $Id$
 
 global $com_lang, $cs_logs, $cs_main;

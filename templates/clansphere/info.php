@@ -1,8 +1,8 @@
 <?php
-// ClanSphere 2010 - www.clansphere.net
+// OpenClanCMS 2010 - www.clansphere.net
 // $Id$
 
-$mod_info['name']     = 'ClanSphere';
+$mod_info['name']     = 'OpenClanCMS';
 $mod_info['version']  = $cs_main['version_name'];
 $mod_info['released'] = $cs_main['version_date'];
 $mod_info['creator']  = 'Seron';

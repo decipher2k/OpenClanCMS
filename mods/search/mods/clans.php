@@ -1,5 +1,5 @@
 <?php
-// ClanSphere 2010 - www.clansphere.net
+// OpenClanCMS 2010 - www.clansphere.net
 // $Id$
 
 $start = empty($_REQUEST['start']) ? 0 : $_REQUEST['start'];

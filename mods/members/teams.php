@@ -1,5 +1,5 @@
 <?php
-// ClanSphere 2010 - www.clansphere.net
+// OpenClanCMS 2010 - www.clansphere.net
 // $Id$
 
 $clan_id = 1;
@@ -9,6 +9,7 @@ $op_members = cs_sql_option(__FILE__,'members');
 
 $squads_order = 'squads_order, squads_name';
 $cs_squads = cs_sql_select(__FILE__,'squads','*','squads_own = \'1\'',$squads_order,0,0);
+$cs_squads = is_array($cs_squads) ? $cs_squads : array();
 $squads_loop = count($cs_squads);
 
 $data['lang']['mod_name'] = $cs_lang[$op_members['label']];
@@ -26,6 +27,7 @@ for($sq_run=0; $sq_run<$squads_loop; $sq_run++) {
   $order = 'mem.members_order ASC, usr.users_nick ASC';
   
   $cs_members = cs_sql_select(__FILE__,$from,$select,$where,$order,0,0);
+  $cs_members = is_array($cs_members) ? $cs_members : array();
   $members_loop = count($cs_members);
 
 

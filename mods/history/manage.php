@@ -1,5 +1,5 @@
 <?php
-// ClanSphere 2010 - www.clansphere.net
+// OpenClanCMS 2010 - www.clansphere.net
 // $Id$
 
 $cs_lang = cs_translate('history');
@@ -16,6 +16,7 @@ $history_count = cs_sql_count(__FILE__,'history');
 $data = array();
 $cells  = 'hs.history_time AS history_time, hs.history_text AS history_text, ';
 $data['history'] = cs_sql_select(__FILE__,'history','*',0,$order,$start,$account['users_limit']);
+$data['history'] = is_array($data['history']) ? $data['history'] : array();
 $history_loop = count($data['history']);
 
 $data['url']['create'] = cs_url('history','create');

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Error :: ClanSphere</title>
+  <title>Error :: OpenClanCMS</title>
   <style>
     :root {
       --bg: #0a0a0b; --bg2: #111114;
@@ -26,10 +26,10 @@
 <body>
   <div class="error">
     <div class="code">{func:show}</div>
-    <h1>An error occurred</h1>
+    <h1>{func:phrase:error_occurred}</h1>
     <p>{func:errors}</p>
-    <p><a href="{func:path}">Return to homepage</a></p>
-    <div class="footer">{func:queries} queries &middot; {func:parse} ms</div>
+    <p><a href="{func:path}">{func:phrase:return_home}</a></p>
+    <div class="footer">{func:queries} {func:phrase:queries} &middot; {func:parse} ms</div>
   </div>
 </body>
 </html>

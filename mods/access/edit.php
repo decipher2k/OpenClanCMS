@@ -1,5 +1,5 @@
 <?php
-// ClanSphere 2010 - www.clansphere.net
+// OpenClanCMS 2010 - www.clansphere.net
 // $Id$
 
 $cs_lang = cs_translate('access');
@@ -46,7 +46,7 @@ elseif(!empty($error)) {
 if(!empty($error) OR !isset($cs_post['submit'])) {
   $data['action']['form'] = cs_url('access','edit');
   $data['access2']['name'] = $cs_access['access_name'];
-  $data['access2']['clansphere'] = cs_link('ClanSphere','modules','view','dir=clansphere');
+  $data['access2']['clansphere'] = cs_link('OpenClanCMS','modules','view','dir=clansphere');
     
   $sel = array(0 => 0,3 => 0,4 => 0,5 => 0);
   $cs_access['access_clansphere'] == 3 ? $sel[3] = 1 : $sel[3] = 0;

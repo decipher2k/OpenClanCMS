@@ -1,12 +1,12 @@
 <?php
-// ClanSphere 2010 - www.clansphere.net
+// OpenClanCMS 2010 - www.clansphere.net
 // $Id$
 
 $cs_lang['mod_name']  = 'Installation';
 $cs_lang['modtext']  = 'Richtet das Portalsystem ein';
 
 $cs_lang['head_list']  = 'Liste';
-$cs_lang['body_list']  = 'Willkommen bei der Installation von ClanSphere!' . cs_html_br(2) . 'Bitte w&auml;hlen Sie eine Sprache:';
+$cs_lang['body_list']  = 'Willkommen bei der Installation von OpenClanCMS!' . cs_html_br(2) . 'Bitte w&auml;hlen Sie eine Sprache:';
 
 $cs_lang['lang'] = 'Sprache';
 
@@ -17,7 +17,7 @@ $cs_lang['configuration'] = 'Konfiguration';
 $cs_lang['database'] = 'Datenbank';
 $cs_lang['login'] = 'Login';
 
-$cs_lang['this_is_compatible_check'] = 'Hier wird gepr&uuml;ft, ob sich der Webserver f&uuml;r die Installation von ClanSphere eignet.';
+$cs_lang['this_is_compatible_check'] = 'Hier wird gepr&uuml;ft, ob sich der Webserver f&uuml;r die Installation von OpenClanCMS eignet.';
 $cs_lang['enough'] = 'Ausreichend';
 $cs_lang['compatible_database'] = 'Kompatible Datenbank';
 $cs_lang['change'] = 'Wechseln';
@@ -44,9 +44,9 @@ $cs_lang['gd_extension'] = 'GD Erweiterung';
 $cs_lang['off']  = 'aus';
 $cs_lang['on'] = 'an';
 
-$cs_lang['check_perfect'] = 'Die gepr&uuml;ften Einstellungen sind perfekt f&uuml;r die Benutzung von ClanSphere!';
-$cs_lang['check_ok'] = 'ClanSphere sollte auf diesem Webserver einwandfrei funktionieren, allerdings sind einige Einstellungen nicht optimal.';
-$cs_lang['check_failed'] = 'Aufgrund der oben markierten Gr&uuml;nde ist es leider nicht m&ouml;glich, ClanSphere zu installieren!';
+$cs_lang['check_perfect'] = 'Die gepr&uuml;ften Einstellungen sind perfekt f&uuml;r die Benutzung von OpenClanCMS!';
+$cs_lang['check_ok'] = 'OpenClanCMS sollte auf diesem Webserver einwandfrei funktionieren, allerdings sind einige Einstellungen nicht optimal.';
+$cs_lang['check_failed'] = 'Aufgrund der oben markierten Gr&uuml;nde ist es leider nicht m&ouml;glich, OpenClanCMS zu installieren!';
 
 $cs_lang['head_complete']  = 'Ende';
 $cs_lang['rem_install']  = '- Installations-Dateien werden entfernt';
@@ -93,7 +93,7 @@ $cs_lang['prefix_err'] = '- Im Pr&auml;fix sind keine oder unerlaubte Zeichen';
 $cs_lang['db_err'] = '- DB Fehler:';
 $cs_lang['file_err'] = '- Setup Datei muss per "Anzeigen" manuell hochgeladen werden';
 
-$cs_lang['save_file'] = 'Den Inhalt bitte kopieren und als "setup.php" auf dem Webspace im ClanSphere-Verzeichnis abspeichern, wo auch die "index.php" liegt. Im Anschluss diese Seite neu Laden oder Installation neu starten!';
+$cs_lang['save_file'] = 'Den Inhalt bitte kopieren und als "setup.php" auf dem Webspace im OpenClanCMS-Verzeichnis abspeichern, wo auch die "index.php" liegt. Im Anschluss diese Seite neu Laden oder Installation neu starten!';
 
 $cs_lang['setup_exists'] = 'Es wurde eine bestehende Setup Datei gefunden.';
 $cs_lang['inst_create_done'] = 'Datenbank gefunden und Setup Datei erstellt.';
@@ -168,7 +168,7 @@ $cs_lang['captcha'] = 'Sicherheitscodes';
 $cs_lang['cash'] = 'Finanzen';
 $cs_lang['categories'] = 'Kategorien';
 $cs_lang['clans'] = 'Clans';
-$cs_lang['clansphere'] = 'ClanSphere';
+$cs_lang['clansphere'] = 'OpenClanCMS';
 $cs_lang['comments'] = 'Kommentare';
 $cs_lang['computers'] = 'Computer';
 $cs_lang['contact'] = 'Kontakt';
@@ -211,5 +211,5 @@ $cs_lang['usersgallery'] = 'Benutzergallery';
 $cs_lang['votes'] = 'Umfragen';
 $cs_lang['wars'] = 'Clanwars';
 $cs_lang['wizard'] = 'Installations Assistent';
-$cs_lang['clansphere_core'] = 'ClanSphere Basis';
+$cs_lang['clansphere_core'] = 'OpenClanCMS Basis';
 $cs_lang['metatags'] = 'Metatags';

@@ -1,5 +1,5 @@
 <?php
-// ClanSphere 2010 - www.clansphere.net
+// OpenClanCMS 2010 - www.clansphere.net
 // $Id$
 
 $cs_lang = cs_translate('members');
@@ -30,6 +30,7 @@ $from = 'members mem LEFT JOIN {pre}_users usr ON mem.users_id = usr.users_id LE
 $where = empty($letter) ? "users_delete = '0'" : "users_delete = '0' AND users_nick LIKE ?";
 $where_params = empty($letter) ? array() : array($letter . '%');
 $cs_members = cs_sql_select(__FILE__,$from,$select,$where,$order,$start,$account['users_limit']);
+$cs_members = is_array($cs_members) ? $cs_members : array();
 $members_loop = count($cs_members);
 
 $data['sort']['user'] = cs_sort('members','manage',$start,0,1,$sort);

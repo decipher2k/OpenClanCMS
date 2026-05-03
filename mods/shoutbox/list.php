@@ -1,5 +1,5 @@
 <?php
-// ClanSphere 2010 - www.clansphere.net 
+// OpenClanCMS 2010 - www.clansphere.net 
 // $Id$
 
 $cs_lang = cs_translate('shoutbox');
@@ -25,10 +25,11 @@ $data['sort']['date'] = cs_sort('shoutbox','list',$start,0,3,$sort);
 
 $cells = 'shoutbox_name, shoutbox_text, shoutbox_date';
 $data['shoutbox'] = cs_sql_select(__FILE__,'shoutbox',$cells,0,$order,$start,$account['users_limit']);
+$data['shoutbox'] = is_array($data['shoutbox']) ? $data['shoutbox'] : array();
 $count_shoutbox = count($data['shoutbox']);
 
 if(empty($count_shoutbox)) {
-$data['shoutbox'] = '';
+$data['shoutbox'] = array();
 }
 
 for($run = 0; $run < $count_shoutbox; $run++) {

@@ -1,12 +1,12 @@
 <?php
-// ClanSphere 2010 - www.clansphere.net
+// OpenClanCMS 2010 - www.clansphere.net
 // $Id$
 
 $cs_lang['mod_name']  = 'Installation';
-$cs_lang['modtext']  = 'Installs ClanSphere';
+$cs_lang['modtext']  = 'Installs OpenClanCMS';
 
 $cs_lang['head_list']  = 'List';
-$cs_lang['body_list']  = 'Welcome to the installation of ClanSphere!' . cs_html_br(2) . 'Please choose a language:';
+$cs_lang['body_list']  = 'Welcome to the installation of OpenClanCMS!' . cs_html_br(2) . 'Please choose a language:';
 
 $cs_lang['lang'] = 'Language';
 
@@ -17,7 +17,7 @@ $cs_lang['configuration'] = 'Configuration';
 $cs_lang['database'] = 'Database';
 $cs_lang['login'] = 'Login';
 
-$cs_lang['this_is_compatible_check'] = 'Here we check whether this webserver suits ClanSphere.';
+$cs_lang['this_is_compatible_check'] = 'Here we check whether this webserver suits OpenClanCMS.';
 $cs_lang['enough'] = 'Enough';
 $cs_lang['compatible_database'] = 'Compatible database';
 $cs_lang['change'] = 'Change';
@@ -44,9 +44,9 @@ $cs_lang['gd_extension'] = 'GD Extension';
 $cs_lang['off']  = 'off';
 $cs_lang['on'] = 'on';
 
-$cs_lang['check_perfect'] = 'All checked settings are perfectly set up to start your ClanSphere experience!';
-$cs_lang['check_ok'] = 'ClanSphere is going to run in this environment, but some settings are not very comfortable.';
-$cs_lang['check_failed'] = 'Caused by the upper issues it is not possible to install ClanSphere here!';
+$cs_lang['check_perfect'] = 'All checked settings are perfectly set up to start your OpenClanCMS experience!';
+$cs_lang['check_ok'] = 'OpenClanCMS is going to run in this environment, but some settings are not very comfortable.';
+$cs_lang['check_failed'] = 'Caused by the upper issues it is not possible to install OpenClanCMS here!';
 
 $cs_lang['head_complete']  = 'End';
 $cs_lang['rem_install']  = '- Remove installation files';
@@ -169,7 +169,7 @@ $cs_lang['captcha'] = 'Captcha';
 $cs_lang['cash'] = 'Cash';
 $cs_lang['categories'] = 'Categories';
 $cs_lang['clans'] = 'Clans';
-$cs_lang['clansphere'] = 'ClanSphere';
+$cs_lang['clansphere'] = 'OpenClanCMS';
 $cs_lang['comments'] = 'Comments';
 $cs_lang['computers'] = 'Computers';
 $cs_lang['contact'] = 'Contact';
@@ -212,5 +212,5 @@ $cs_lang['usersgallery'] = 'Usersgallery';
 $cs_lang['votes'] = 'Votes';
 $cs_lang['wars'] = 'Clanwars';
 $cs_lang['wizard'] = 'Installation Wizard';
-$cs_lang['clansphere_core'] = 'ClanSphere Base';
+$cs_lang['clansphere_core'] = 'OpenClanCMS Base';
 $cs_lang['metatags'] = 'Metatags';

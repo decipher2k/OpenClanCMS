@@ -1,5 +1,5 @@
 <?php
-// ClanSphere 2010 - www.clansphere.net
+// OpenClanCMS 2010 - www.clansphere.net
 // $Id$
 
 $cs_lang = cs_translate('awards');
@@ -38,6 +38,7 @@ $select = 'aws.awards_id AS awards_id, aws.awards_time AS awards_time, aws.award
 $select .= ' aws.games_id AS games_id, aws.awards_rank AS awards_rank, gms.games_name AS games_name, sqd.squads_name AS squads_name,';
 $select .= ' sqd.squads_id AS squads_id';
 $cs_awards = cs_sql_select(__FILE__,$from,$select,0,$order,$start,$account['users_limit']);
+$cs_awards = is_array($cs_awards) ? $cs_awards : array();
 $awards_loop = count($cs_awards);
 
 for($run=0; $run<$awards_loop; $run++) {

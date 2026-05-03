@@ -1,5 +1,5 @@
 <?php
-// ClanSphere 2010 - www.clansphere.net
+// OpenClanCMS 2010 - www.clansphere.net
 // $Id$
 
 $cs_lang = cs_translate('rules');
@@ -10,6 +10,7 @@ $data['rules'] = array();
 $rules_count = cs_sql_count(__FILE__,'rules');
 $where = "categories_mod = 'rules' AND categories_access <= ?";
 $categories_data = cs_sql_select(__FILE__,'categories','*',$where,'categories_name',0,0,0,array($account['access_rules']));
+$categories_data = is_array($categories_data) ? $categories_data : array();
 $categories_loop = count($categories_data);
 
 $data['count']['rules'] = sprintf($cs_lang['all'], $rules_count);

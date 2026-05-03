@@ -1,5 +1,5 @@
 <?php
-// ClanSphere 2010 - www.clansphere.net
+// OpenClanCMS 2010 - www.clansphere.net
 // $Id$
 
 if(!extension_loaded('mysql') AND extension_loaded('mysqli')) {
@@ -164,7 +164,7 @@ if(!extension_loaded('mysql') AND extension_loaded('mysqli')) {
           mysqli_stmt_close($stmt);
         }
         cs_log_sql($cs_file, $sql_query);
-        if(count($cs_template)) {
+        if(!empty($cs_template)) {
           foreach($cs_template AS $navlist => $value) {
           if($navlist == $mod) {
             $new_result = array_merge($new_result,$value);
@@ -463,7 +463,7 @@ if(!extension_loaded('mysql') AND extension_loaded('mysqli')) {
         }
         mysql_free_result($sql_data);
         cs_log_sql($cs_file, $sql_query);
-        if(count($cs_template)) {
+        if(!empty($cs_template)) {
           foreach($cs_template AS $navlist => $value) {
             if($navlist == $mod) { $new_result = array_merge($new_result,$value); }
           }

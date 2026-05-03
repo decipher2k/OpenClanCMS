@@ -1,5 +1,5 @@
 <?php
-// ClanSphere 2010 - www.clansphere.net
+// OpenClanCMS 2010 - www.clansphere.net
 // $Id$
 
 function cs_cache_token($name, $ttl = 0) {
@@ -20,7 +20,7 @@ function cs_cache_has_object($content) {
     if(($char == 'O' OR $char == 'C') AND isset($content[$pos + 1]) AND $content[$pos + 1] == ':')
       return true;
 
-    if($char == 's' AND isset($content{$pos + 1}) AND $content{$pos + 1} == ':') {
+    if($char == 's' AND isset($content[$pos + 1]) AND $content[$pos + 1] == ':') {
       $len_start = $pos + 2;
       $len_end = strpos($content, ':', $len_start);
       if($len_end === false)

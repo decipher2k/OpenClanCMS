@@ -1,9 +1,9 @@
 <?php
-// ClanSphere 2010 - www.clansphere.net
+// OpenClanCMS 2010 - www.clansphere.net
 // $Id$
 
 $cs_lang['mod_name'] = 'Modules';
-$cs_lang['info_text'] = 'Management of the modules of ClanSphere';
+$cs_lang['info_text'] = 'Management of the modules of OpenClanCMS';
 
 $cs_lang['wizard'] = 'Wizard';
 $cs_lang['task_done'] = 'Mark task as done';

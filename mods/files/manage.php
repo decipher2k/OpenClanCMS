@@ -1,5 +1,5 @@
 <?php
-// ClanSphere 2010 - www.clansphere.net
+// OpenClanCMS 2010 - www.clansphere.net
 // $Id$
 
 $cs_lang = cs_translate('files');
@@ -26,6 +26,7 @@ $data['head']['message'] = cs_getmsg();
 
 $filesmod = "categories_mod = 'files'";
 $categories = cs_sql_select(__FILE__,'categories','categories_name, categories_id',$filesmod,'categories_name',0,0);
+$categories = is_array($categories) ? $categories : array();
 
 $data['head']['categories'] = '';
 if (!empty($categories)) {
@@ -40,6 +41,7 @@ $select = 'fls.files_name AS files_name, fls.users_id AS users_id, usr.users_nic
 $select .= ' AS users_nick, usr.users_active AS users_active, usr.users_id AS users_id, usr.users_active AS users_active, fls.files_time AS files_time, fls.files_id AS files_id';
 $select .= ', fls.files_mirror AS files_mirror';
 $cs_files = cs_sql_select(__FILE__,$from,$select,$where,$order,$start,$account['users_limit'],0,$where_params);
+$cs_files = is_array($cs_files) ? $cs_files : array();
 $files_loop = count($cs_files);
 
 $data['sort']['headline'] = cs_sort('files','manage',$start,$categories_id,1,$sort);

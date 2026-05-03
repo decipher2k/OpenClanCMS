@@ -1,10 +1,10 @@
 <?php
-// ClanSphere 2010 - www.clansphere.net
+// OpenClanCMS 2010 - www.clansphere.net
 // $Id$
 
 $cs_lang = cs_translate('clansphere');
 
-$head = array('mod' => 'ClanSphere', 'action' => $cs_lang['head_system'], 'topline' => $cs_lang['body_system']);
+$head = array('mod' => 'OpenClanCMS', 'action' => $cs_lang['head_system'], 'topline' => $cs_lang['body_system']);
 
 $sys_array = array(
   $cs_lang['software'] => array(

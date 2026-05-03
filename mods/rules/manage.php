@@ -1,5 +1,5 @@
 <?php
-// ClanSphere 2010 - www.clansphere.net
+// OpenClanCMS 2010 - www.clansphere.net
 // $Id$
 
 $cs_lang = cs_translate('rules');
@@ -32,6 +32,7 @@ $data['sort']['cat']   = cs_sort('rules','manage',$start,0,5,$sort);
 $from = 'rules ru INNER JOIN {pre}_categories cat ON ru.categories_id = cat.categories_id';
 $select = 'ru.rules_id AS rules_id, ru.rules_order AS rules_order, ru.rules_title AS rules_title, cat.categories_name AS categories_name';
 $data['rules'] = cs_sql_select(__FILE__,$from,$select,0,$order,$start,$account['users_limit']);
+$data['rules'] = is_array($data['rules']) ? $data['rules'] : array();
 $rules_loop = count($data['rules']);
 
 for($run=0; $run<$rules_loop; $run++) {

@@ -1,5 +1,5 @@
 <?php
-// ClanSphere 2010 - www.clansphere.net
+// OpenClanCMS 2010 - www.clansphere.net
 // $Id$
 
 $cs_lang = cs_translate('gbook');
@@ -25,6 +25,7 @@ $select .= 'usr.users_skype AS users_skype, usr.users_email AS users_email, usr.
 $where = "gbook_users_id = '0' AND gbook_lock = '1'";
 $order = 'gbk.gbook_id DESC';
 $cs_gbook = cs_sql_select(__FILE__,$from,$select,$where,$order,$start,$account['users_limit']);
+$cs_gbook = is_array($cs_gbook) ? $cs_gbook : array();
 $gbook_loop = count($cs_gbook);
 
 $c = 0;

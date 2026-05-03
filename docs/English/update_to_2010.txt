@@ -1,11 +1,11 @@
-UPDATE ClanSphere 2009.0.3 to ClanSphere 2010.0
+UPDATE OpenClanCMS 2009.0.3 to OpenClanCMS 2010.0
 ------------------------------------------------------------------------
 
-Attention: ClanSphere 2010 requires 2009.0.3 or newer to be installed on SQL-side.
+Attention: OpenClanCMS 2010 requires 2009.0.3 or newer to be installed on SQL-side.
 All shipped files with this release must replace their old counterparts on your webspace, too.
 
 The following steps inform you about changes that may need your attention in order to keep 
-ClanSphere running after the update process is finished. Please read them carefully.
+OpenClanCMS running after the update process is finished. Please read them carefully.
 
 1. The directory /system/runstartup does no longer exist by default and is no longer needed, 
    because startup files moved to the corresponding mods directory. To restore the old and 
@@ -21,7 +21,7 @@ ClanSphere running after the update process is finished. Please read them carefu
    parts are better separated from HTML and loaded with a <link> tag in the source code. This 
    will result in big performance gains, but also prevent strange errors from occuring.
    
-4. ClanSphere does no longer ship with Mootools included. Be sure to use jQuery Syntax instead 
+4. OpenClanCMS does no longer ship with Mootools included. Be sure to use jQuery Syntax instead 
    as it is the only JavaScript Library bundled with upcoming releases. We have also moved all 
    JavaScript includes to the very bottom of the HTML body tag by default so that DOM parsing is 
    only done once which speeds up page generation in every web-browser.

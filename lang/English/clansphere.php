@@ -1,8 +1,8 @@
 <?php
-// ClanSphere 2010 - www.clansphere.net 
+// OpenClanCMS 2010 - www.clansphere.net 
 // $Id$
 
-$cs_lang['mod_name']  = 'ClanSphere';
+$cs_lang['mod_name']  = 'OpenClanCMS';
 $cs_lang['modinfo']  = 'Main module with CMS-core';
 $cs_lang['modules_list']  = 'All installed modules are available from here.';
 $cs_lang['languages']  = 'Languages';
@@ -56,7 +56,7 @@ $cs_lang['themes'] = 'Themes';
 $cs_lang['using'] = 'using';
 $cs_lang['dstime'] = 'Daylight Savings Time';
 
-$cs_lang['body_options']  = 'ClanSphere settings administration.';
+$cs_lang['body_options']  = 'OpenClanCMS settings administration.';
 $cs_lang['off'] = 'off';
 $cs_lang['on'] = 'on';
 $cs_lang['automatic'] = 'automatic';
@@ -203,7 +203,7 @@ $cs_lang['body_version'] = 'Check for new releases';
 $cs_lang['status'] = 'Status';
 $cs_lang['installed'] = 'Installed';
 $cs_lang['available'] = 'Available';
-$cs_lang['up_to_date'] = 'Your version of ClanSphere is up to date';
+$cs_lang['up_to_date'] = 'Your version of OpenClanCMS is up to date';
 $cs_lang['new_release'] = 'A new release is available.';
 $cs_lang['visit_dlpage'] = ' Visit Download page';
 
@@ -211,11 +211,11 @@ $cs_lang['need_url_fopen'] = 'Error: The php setting "allow_url_fopen" must be e
 $cs_lang['file_not_read'] = 'Error: The version check could not read the remote file';
 
 // Security News
-$cs_lang['new_info'] = 'New messages from the ClanSphere Team';
+$cs_lang['new_info'] = 'New messages from the OpenClanCMS Team';
 $cs_lang['view'] = 'View';
 $cs_lang['read'] = 'Mark as read';
 $cs_lang['showall'] = 'Show all';
-$cs_lang['new_infos'] = 'All messages from the ClanSphere Team';
+$cs_lang['new_infos'] = 'All messages from the OpenClanCMS Team';
 $cs_lang['del_install_file'] = 'Warning: It is strongly recommended to remove the "install.php" file';
 
 // Options

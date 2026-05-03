@@ -1,5 +1,5 @@
 <?php
-// ClanSphere 2010 - www.clansphere.net
+// OpenClanCMS 2010 - www.clansphere.net
 // $Id$
 
 $cs_lang = cs_translate('members');
@@ -13,6 +13,7 @@ $cells  = 'sq.squads_id AS squads_id, sq.games_id AS games_id, sq.squads_name AS
 $cells .= 'sq.clans_id AS clans_id, cln.clans_tagpos AS clans_tagpos, ';
 $cells .= 'cln.clans_tag AS clans_tag';
 $data['squads'] = cs_sql_select(__FILE__,$tables,$cells,'squads_own = \'1\'','squads_order, squads_name',0,0);
+$data['squads'] = is_array($data['squads']) ? $data['squads'] : array();
 $squads_loop = count($data['squads']);
 
 $data['head']['mod'] = $cs_lang[$op_members['label']];
@@ -31,6 +32,7 @@ for($sq_run=0; $sq_run<$squads_loop; $sq_run++) {
   $order = 'mem.members_order ASC, usr.users_nick ASC';
 
   $data['squads'][$sq_run]['members'] = cs_sql_select(__FILE__,$from,$select,$where,$order,0,0);
+  $data['squads'][$sq_run]['members'] = is_array($data['squads'][$sq_run]['members']) ? $data['squads'][$sq_run]['members'] : array();
   $members_loop = count($data['squads'][$sq_run]['members']);
 
   $data['squads'][$sq_run]['games_img'] = '';

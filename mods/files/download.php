@@ -1,5 +1,5 @@
 <?php
-// ClanSphere 2010 - www.clansphere.net
+// OpenClanCMS 2010 - www.clansphere.net
 // $Id$
 
 $cs_lang = cs_translate('files');
@@ -18,7 +18,7 @@ $from = 'files';
 $select = 'files_count, files_name, files_mirror';
 $where = 'files_id = ?'; 
 $cs_files = cs_sql_select(__FILE__,$from,$select,$where,0,0,1,0,array($files_id)); 
-$files_loop = count($cs_files);
+$files_loop = !empty($cs_files) && is_array($cs_files) ? count($cs_files) : 0;
 
 if(!empty($files_loop)) {
   $files_count = $cs_files['files_count'];

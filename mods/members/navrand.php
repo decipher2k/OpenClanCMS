@@ -1,5 +1,5 @@
 <?php
-// ClanSphere 2010 - www.clansphere.net
+// OpenClanCMS 2010 - www.clansphere.net
 // $Id$
 
 $cs_lang = cs_translate('members');
@@ -12,7 +12,7 @@ $cells .= 'usr.users_nick AS users_nick, usr.users_name AS users_name, usr.users
 $tables = 'members mm INNER JOIN {pre}_users usr ON mm.users_id = usr.users_id INNER JOIN {pre}_squads sq ON mm.squads_id = sq.squads_id';
 
 $data['members'] = cs_sql_select(__FILE__,$tables,$cells,'sq.squads_own = 1','{random}',0,1);
-$found = count($data['members']);
+$found = !empty($data['members']) && is_array($data['members']) ? count($data['members']) : 0;
 
 if(!empty($found)) {
   $data['members']['picture'] = empty($data['members']['users_picture']) ? $cs_lang['nopic'] :

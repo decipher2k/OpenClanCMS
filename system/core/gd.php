@@ -1,5 +1,5 @@
 <?php
-// ClanSphere 2010 - www.clansphere.net
+// OpenClanCMS 2010 - www.clansphere.net
 // $Id$
 
 function cs_captcha($hash) {
@@ -29,7 +29,7 @@ function cs_captcha($hash) {
 
   for($i=0;$i<$chars;$i++) {
     $textcolor = ImageColorAllocate($img,rand(100,250),rand(100,250),rand(100,250));
-    ImageString($img,rand(3,5),rand(($i * 20 + 2),($i * 20 + 8)),rand(2,$height - 20),$hash{$i},$textcolor);
+    ImageString($img,rand(3,5),rand(($i * 20 + 2),($i * 20 + 8)),rand(2,$height - 20),$hash[$i],$textcolor);
   }
 
   # disable browser / proxy caching

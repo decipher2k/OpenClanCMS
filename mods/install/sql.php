@@ -1,10 +1,14 @@
 <?php
-// ClanSphere 2010 - www.clansphere.net
+// OpenClanCMS 2010 - www.clansphere.net
 // $Id$
 
 $cs_lang = cs_translate('install');
 
 global $cs_db;
+
+if(!file_exists('setup.php') OR !function_exists('cs_sql_replace') OR empty($cs_db['con'])) {
+  cs_redirect('', 'install', 'settings', 'lang=' . $account['users_lang']);
+}
 
 function cs_installerror($old_query = '') {
 

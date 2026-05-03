@@ -3,26 +3,41 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Login :: ClanSphere</title>
+  <title>Login :: OpenClanCMS</title>
   <style>
     :root {
       --bg: #0a0a0b; --bg2: #111114; --bg3: #1a1a1f;
       --green: #00cc3a; --green-dim: #006622;
       --amber: #b8942e; --text: #c0c0c0; --text-dim: #707070; --border: #222228;
+      --panel: linear-gradient(145deg, rgba(26,26,31,0.96), rgba(12,12,15,0.98) 62%, rgba(7,16,12,0.98));
+      --shadow: 0 24px 60px rgba(0,0,0,0.45), 0 0 0 1px rgba(0,204,58,0.10) inset;
       --font: 'Segoe UI', system-ui, sans-serif;
       --mono: 'Fira Code', 'Consolas', monospace;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: var(--font); background: var(--bg); color: var(--text); display: flex; align-items: center; justify-content: center; min-height: 100vh; }
-    .login-box { background: var(--bg2); border: 1px solid var(--border); padding: 2.5rem; width: 380px; max-width: 95vw; border-radius: 4px; box-shadow: 0 0 30px rgba(0,204,58,0.05); }
+    body {
+      font-family: var(--font);
+      background:
+        radial-gradient(circle at 18% 0%, rgba(0,204,58,0.12), transparent 24rem),
+        radial-gradient(circle at 86% 12%, rgba(184,148,46,0.08), transparent 22rem),
+        linear-gradient(180deg, #0c0c10 0%, var(--bg) 55%, #060607 100%);
+      color: var(--text); display: flex; align-items: center; justify-content: center; min-height: 100vh;
+    }
+    .login-box {
+      background: var(--panel); border: 1px solid rgba(0,204,58,0.16); padding: 2.5rem;
+      width: 380px; max-width: 95vw; border-radius: 7px; box-shadow: var(--shadow);
+    }
     .login-box h1 { font-family: var(--mono); font-size: 1.3rem; color: var(--green); margin-bottom: 0.3rem; font-weight: 400; letter-spacing: 0.06em; }
+    .login-box h1 span { color: var(--green); }
+    .brand-part-warm { color: var(--amber); }
+    .brand-part-green { color: var(--green); }
     .login-box h2 { font-size: 0.7rem; color: var(--amber); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 1.5rem; font-weight: 400; }
     input[type=text], input[type=password], input[type=email] {
-      width: 100%; background: var(--bg); border: 1px solid var(--border); color: var(--text);
-      padding: 0.7rem; font-family: var(--font); font-size: 0.9rem; margin-bottom: 0.8rem; border-radius: 2px;
+      width: 100%; background: linear-gradient(145deg, #0d0d10, #111114); border: 1px solid rgba(255,255,255,0.06); color: var(--text);
+      padding: 0.7rem; font-family: var(--font); font-size: 0.9rem; margin-bottom: 0.8rem; border-radius: 5px;
     }
     input:focus { outline: none; border-color: var(--green); box-shadow: 0 0 6px rgba(0,204,58,0.15); }
-    input[type=submit] { width: 100%; background: var(--green-dim); color: var(--green); border: 1px solid var(--green); padding: 0.7rem; cursor: pointer; font-family: var(--mono); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.1em; border-radius: 2px; }
+    input[type=submit] { width: 100%; background: linear-gradient(90deg, var(--green-dim), #0d3a21); color: var(--green); border: 1px solid var(--green); padding: 0.7rem; cursor: pointer; font-family: var(--mono); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.1em; border-radius: 5px; box-shadow: 0 10px 24px rgba(0,0,0,0.24); }
     input[type=submit]:hover { background: var(--green); color: #000; }
     .links { margin-top: 1rem; font-size: 0.75rem; text-align: center; }
     .links a { color: var(--text-dim); text-decoration: none; }
@@ -33,11 +48,11 @@
 <body>
   <div>
     <div class="login-box">
-      <h1>&gt; CLANSPHERE_</h1>
-      <h2>Maintenance Mode</h2>
+      <h1>&gt; <span>{func:title_brand}</span>_</h1>
+      <h2>{func:phrase:maintenance}</h2>
       {func:show}
     </div>
-    <div class="footer">{func:queries} queries &middot; {func:parse} ms</div>
+    <div class="footer">{func:queries} {func:phrase:queries} &middot; {func:parse} ms</div>
   </div>
 </body>
 </html>

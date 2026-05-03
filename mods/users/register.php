@@ -1,5 +1,5 @@
 <?php
-// ClanSphere 2010 - www.clansphere.net
+// OpenClanCMS 2010 - www.clansphere.net
 // $Id$
 
 $cs_lang = cs_translate('users');
@@ -81,6 +81,7 @@ if(empty($op_users['register'])) {
     $errormsg .= sprintf($cs_lang['flood_on'], $diff) . cs_html_br(1);
   }
 
+  $hcaptcha_opts = cs_sql_option(__FILE__, 'clansphere');
   if(empty($hcaptcha_opts['hcaptcha_sitekey'])) {
     if(!cs_captchacheck($_POST['captcha'])) {
         $error++;

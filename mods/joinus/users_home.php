@@ -1,5 +1,5 @@
 <?php
-// ClanSphere 2010 - www.clansphere.net
+// OpenClanCMS 2010 - www.clansphere.net
 // $Id$
 
 $cs_lang = cs_translate('joinus');
@@ -8,6 +8,7 @@ $data = array();
 
 $select = 'games_id, joinus_nick, joinus_age, joinus_since, joinus_id';
 $cs_joinus = cs_sql_select(__FILE__,'joinus',$select,0,'joinus_since DESC',0,$cs_option['max_usershome']);
+$cs_joinus = is_array($cs_joinus) ? $cs_joinus : array();
 $join_loop = count($cs_joinus);
 
 if(!empty($cs_joinus)) {

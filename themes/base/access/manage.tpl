@@ -13,7 +13,7 @@
   <tr>
     <td class="headb">{sort:name} {lang:name}</td>
     <td class="headb">{sort:access} {lang:access}</td>
-    <td class="headb">{sort:clansphere} ClanSphere</td>
+    <td class="headb">{sort:clansphere} OpenClanCMS</td>
     <td class="headb" colspan="3">{lang:options}</td>
   </tr>
   {loop:access}

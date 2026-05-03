@@ -1,5 +1,5 @@
 <?php
-// ClanSphere 2010 - www.clansphere.net
+// OpenClanCMS 2010 - www.clansphere.net
 // $Id$
 
 $cs_lang = cs_translate('members');
@@ -42,6 +42,7 @@ $where = 'mem.users_id = ? AND mem.members_admin > 0';
 $select = 'sqd.squads_name AS squads_name, sqd.squads_id AS squads_id';
 $from = 'members mem INNER JOIN {pre}_squads sqd ON mem.squads_id = sqd.squads_id';
 $sqd_data = cs_sql_select(__FILE__,$from,$select,$where,'sqd.squads_name',0,0,0,array($account['users_id']));
+$sqd_data = is_array($sqd_data) ? $sqd_data : array();
 $sqd_loop = count($sqd_data);
 
 for($run=0; $run<$sqd_loop; $run++) {
@@ -57,6 +58,7 @@ $select = 'mem.members_admin AS members_admin, mem.members_order AS members_orde
 $from = 'members mem INNER JOIN {pre}_users usr ON mem.users_id = usr.users_id';
 $where = 'mem.squads_id = ?';
 $cs_members = cs_sql_select(__FILE__,$from,$select,$where,$order,0,0,0,array($squads_id));
+$cs_members = is_array($cs_members) ? $cs_members : array();
 $members_loop = count($cs_members);
 
 $data['sort']['user'] = cs_sort('members','center',0,$squads_id,1,$sort);

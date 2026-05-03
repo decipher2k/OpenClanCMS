@@ -745,11 +745,11 @@ INSERT INTO {pre}_options (options_mod, options_name, options_value) VALUES ('cl
 INSERT INTO {pre}_options (options_mod, options_name, options_value) VALUES ('clansphere', 'cellspacing', '1');
 INSERT INTO {pre}_options (options_mod, options_name, options_value) VALUES ('clansphere', 'data_limit', '20');
 INSERT INTO {pre}_options (options_mod, options_name, options_value) VALUES ('clansphere', 'def_lang', '{def_lang}');
-INSERT INTO {pre}_options (options_mod, options_name, options_value) VALUES ('clansphere', 'def_tpl', 'clansphere');
-INSERT INTO {pre}_options (options_mod, options_name, options_value) VALUES ('clansphere', 'def_theme', 'clansphere');
+INSERT INTO {pre}_options (options_mod, options_name, options_value) VALUES ('clansphere', 'def_tpl', 'cyberpunk');
+INSERT INTO {pre}_options (options_mod, options_name, options_value) VALUES ('clansphere', 'def_theme', 'cyberpunk');
 INSERT INTO {pre}_options (options_mod, options_name, options_value) VALUES ('clansphere', 'mod_rewrite', '0');
 INSERT INTO {pre}_options (options_mod, options_name, options_value) VALUES ('clansphere', 'def_width', '100%');
-INSERT INTO {pre}_options (options_mod, options_name, options_value) VALUES ('clansphere', 'def_title', 'ClanSphere');
+INSERT INTO {pre}_options (options_mod, options_name, options_value) VALUES ('clansphere', 'def_title', 'OpenClanCMS');
 INSERT INTO {pre}_options (options_mod, options_name, options_value) VALUES ('clansphere', 'def_mod', 'news');
 INSERT INTO {pre}_options (options_mod, options_name, options_value) VALUES ('clansphere', 'def_action', 'recent');
 INSERT INTO {pre}_options (options_mod, options_name, options_value) VALUES ('clansphere', 'def_path', '');
@@ -768,7 +768,7 @@ INSERT INTO {pre}_options (options_mod, options_name, options_value) VALUES ('cl
 INSERT INTO {pre}_options (options_mod, options_name, options_value) VALUES ('clansphere', 'sec_news', '594');
 INSERT INTO {pre}_options (options_mod, options_name, options_value) VALUES ('clansphere', 'sec_remote', '1');
 INSERT INTO {pre}_options (options_mod, options_name, options_value) VALUES ('clansphere', 'sec_time', '0');
-INSERT INTO {pre}_options (options_mod, options_name, options_value) VALUES ('clansphere', 'version_name', '2011.4.4');
+INSERT INTO {pre}_options (options_mod, options_name, options_value) VALUES ('clansphere', 'version_name', '2026.1.1');
 INSERT INTO {pre}_options (options_mod, options_name, options_value) VALUES ('clansphere', 'version_date', '2014-04-21');
 INSERT INTO {pre}_options (options_mod, options_name, options_value) VALUES ('clansphere', 'version_id', '96');
 INSERT INTO {pre}_options (options_mod, options_name, options_value) VALUES ('comments', 'allow_unreg', '0');

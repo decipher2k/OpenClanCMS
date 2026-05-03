@@ -1,5 +1,5 @@
 <?php
-// ClanSphere 2010 - www.clansphere.net
+// OpenClanCMS 2010 - www.clansphere.net
 // $Id$
 
 $cs_lang = cs_translate('files');
@@ -9,7 +9,9 @@ require 'mods/categories/functions.php';
 $where = "categories_mod = 'files' AND categories_access <= '" . $account['access_files'] . "' AND categories_subid = '0'";
 $cells = 'categories_id, categories_name, categories_picture, categories_text, categories_subid';
 $categories_data = cs_sql_select(__FILE__,'categories',$cells,$where,'categories_subid ASC, categories_name',0,0);
+$categories_data = is_array($categories_data) ? $categories_data : array();
 $categories_data = cs_catsort($categories_data);
+$categories_data = is_array($categories_data) ? $categories_data : array();
 $categories_loop = count($categories_data);
 
 $data = array();
@@ -37,6 +39,7 @@ for($run=0; $run < $categories_loop; $run++) {
   $sub_where = "categories_mod = 'files' AND categories_access <= '" . $account['access_files'] . "'";
   $sub_where .= " AND categories_subid = '" . $categories_data[$run]['categories_id'] . "'";
   $sub_data = cs_sql_select(__FILE__,'categories','*',$sub_where,'categories_name',0,0);
+  $sub_data = is_array($sub_data) ? $sub_data : array();
   $sub_loop = count($sub_data);
   $data['categories'][$run]['if']['subcats'] = false;
   if(!empty($sub_loop)) {

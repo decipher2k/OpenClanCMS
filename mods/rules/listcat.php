@@ -1,5 +1,5 @@
 <?php
-// ClanSphere 2010 - www.clansphere.net
+// OpenClanCMS 2010 - www.clansphere.net
 // $Id$
 
 $cs_lang = cs_translate('rules');
@@ -10,9 +10,9 @@ $categories_id = empty($cs_get['id']) ? 0 : $cs_get['id'];
 
 $where_params = array($categories_id, $account['access_rules']);
 $where = "categories_id = ? AND categories_access <= ?";
-$data['cat_data'] = cs_sql_select(__FILE__,'categories','categories_name, categories_text',$where,0,0,0,0,$where_params);
+$data['cat_data'] = cs_sql_select(__FILE__,'categories','categories_name, categories_text',$where,0,0,1,0,$where_params);
 
-if(isset($data['cat_data']['name'])) {
+if(isset($data['cat_data']['categories_name'])) {
   $data['cat_data']['name'] = cs_secure($data['cat_data']['categories_name']);
   $data['cat_data']['text'] = cs_secure($data['cat_data']['categories_text'],1);
 }
@@ -23,6 +23,7 @@ else {
 
 $select = 'rules_order, rules_title, rules_rule';
 $data['rules'] = cs_sql_select(__FILE__,'rules',$select,'categories_id = ?','rules_order ASC',0,0,0,array($categories_id));
+$data['rules'] = is_array($data['rules']) ? $data['rules'] : array();
 $rules_loop1 = count($data['rules']);
 
 for($run=0; $run<$rules_loop1; $run++) {

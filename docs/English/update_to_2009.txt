@@ -1,19 +1,19 @@
-UPDATE ClanSphere 2008.X to ClanSphere 2009.0
+UPDATE OpenClanCMS 2008.X to OpenClanCMS 2009.0
 ------------------------------------------------------------------------
 
 1. Create a backup of your modified and added files
 
 2. Save the contents of the database, for example in MySQL with the tool phpMyAdmin
-   Note: The built-in export in ClanSphere is currently only suitable for small amounts of data
+   Note: The built-in export in OpenClanCMS is currently only suitable for small amounts of data
 
 3. Make sure a login.htm exists in the template to open the page in maintenance mode
    Caution: If it doesn't exist please copy the one within the clansphere template including its CSS files
 
-4. Set the mode of the page to maintenance, which can be found inside System -> Options -> ClanSphere
+4. Set the mode of the page to maintenance, which can be found inside System -> Options -> OpenClanCMS
 
 5. Go to System -> Database -> Import and run the files from the updates directory
    Caution: Do only execute files from your current version up to the new one
-   Note: In older versions ClanSphere the database module can have another name
+   Note: In older versions OpenClanCMS the database module can have another name
 
 6. Unzip the contents except for the directories docs and updates, first locally and then on the webspace
    Note: At best use a FTP program e.g. FileZilla

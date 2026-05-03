@@ -1,5 +1,5 @@
 <?php
-// ClanSphere 2010 - www.clansphere.net
+// OpenClanCMS 2010 - www.clansphere.net
 // $Id$
 
 $cs_lang = cs_translate('news');
@@ -50,7 +50,7 @@ $select .= 'categories_id, cat.categories_picture AS categories_picture, cat.cat
 $order = 'news_attached DESC, news_time DESC';
 $cs_news = cs_sql_select(__FILE__, $from, $select, $where, $order, $start, $cs_option['max_recent'], 0, $where_params);
 
-if($cs_option['max_recent'] == '1') {
+if($cs_option['max_recent'] == '1' AND !empty($cs_news)) {
   $anews = array();
   array_push($anews,$cs_news);
   unset($cs_news);
@@ -58,12 +58,14 @@ if($cs_option['max_recent'] == '1') {
   $news_loop = 1;
 }
 else {
-  $news_loop = count($cs_news);
+  $cs_news = is_array($cs_news) ? $cs_news : array();
+  $news_loop = is_array($cs_news) ? count($cs_news) : 0;
 }
 
 // Get number of comments per post
 // $comment_counts maps news_id to comment count
 $comment_counts = array();
+if(!empty($cs_news) AND is_array($cs_news)) {
   $news_ids_arr = array();
   foreach($cs_news as $item){
     $news_ids_arr[] = $item['news_id'];

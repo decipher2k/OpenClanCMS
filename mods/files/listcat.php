@@ -1,5 +1,5 @@
 <?php
-// ClanSphere 2010 - www.clansphere.net
+// OpenClanCMS 2010 - www.clansphere.net
 // $Id$
 
 $cs_lang = cs_translate('files');
@@ -27,7 +27,7 @@ $order = $cs_sort[$sort];
 
 $where_acc = 'categories_access <= ' . (int) $account['access_files'] . ' AND categories_id = ' . (int) $categories_id;
 $categories = cs_sql_select(__FILE__,'categories','categories_name',$where_acc);
-$data['category']['name'] = $categories['categories_name'];
+$data['category']['name'] = empty($categories['categories_name']) ? '' : $categories['categories_name'];
 $data['category']['count'] = cs_sql_count(__FILE__,'files',$where,0,$where_params);
 
 $data['category']['paginator'] = cs_pages('files','listcat',$data['category']['count'],$start,$categories_id,$sort);
@@ -35,6 +35,7 @@ $data['category']['paginator'] = cs_pages('files','listcat',$data['category']['c
 $sub_where = "categories_mod = 'files' AND categories_access <= '" . $account['access_files'] . "'";
 $sub_where .= " AND categories_subid = '" . $categories_id . "'";
 $sub_data = cs_sql_select(__FILE__,'categories','*',$sub_where,'categories_name',0,0);
+$sub_data = is_array($sub_data) ? $sub_data : array();
 $sub_loop = count($sub_data);
 $data['if']['subcats'] = 0;
 
@@ -60,6 +61,7 @@ $select = 'fls.files_name AS files_name, fls.users_id AS users_id, usr.users_nic
 $select .= ' AS users_nick, usr.users_active AS users_active, fls.files_time AS files_time, fls.files_id AS files_id';
 $select .= ', fls.files_mirror AS files_mirror, fls.files_size AS files_size';
 $cs_files = cs_sql_select(__FILE__,$from,$select,$where,$order,$start,$account['users_limit'],0,$where_params);
+$cs_files = is_array($cs_files) ? $cs_files : array();
 $files_loop = count($cs_files);
 
 $data['sort']['name'] = cs_sort('files','listcat',$start,$categories_id,1,$sort);

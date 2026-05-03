@@ -8,7 +8,7 @@ index 0000000..4e2223f
 +
 +Datum: 2026-05-03
 +
-+Scope: Vollstaendige statische Sicherheitspruefung der ClanSphere 2011.4.4-r2 Codebase in diesem Workspace. Geprueft wurden Authentifizierung, Session-Handling, CSRF, Token-Generierung, SQL-Konstruktion, Includes, Uploads, Dateioperationen, Redirects/Header, Installer, Template-/HTML-Ausgabe, AJAX/JavaScript und Webserver-Upload-Schutz.
++Scope: Vollstaendige statische Sicherheitspruefung der OpenClanCMS 2026.1.1-r2 Codebase in diesem Workspace. Geprueft wurden Authentifizierung, Session-Handling, CSRF, Token-Generierung, SQL-Konstruktion, Includes, Uploads, Dateioperationen, Redirects/Header, Installer, Template-/HTML-Ausgabe, AJAX/JavaScript und Webserver-Upload-Schutz.
 +
 +## Zusammenfassung
 +
@@ -751,7 +751,7 @@ index 69e2522..b49199e 100644
 --- a/mods/ajax/mail.php
 +++ b/mods/ajax/mail.php
 @@ -2,8 +2,9 @@
- // ClanSphere 2010 - www.clansphere.net
+ // OpenClanCMS 2010 - www.clansphere.net
  // $Id$
  
 -$string = base64_decode($_GET['mail']);
@@ -3007,7 +3007,7 @@ index 9514c82..f4f9327 100644
      $categories = empty($_POST['categories']) ? 'FALSE' : 'TRUE';
      $protected = empty($_POST['protected']) ? 'FALSE' : 'TRUE';
 @@ -58,16 +64,16 @@ if (!empty($_POST['submit'])) {
-     $infocontent .= '// ClanSphere 2010 - www.clansphere.net'."\r\n";
+     $infocontent .= '// OpenClanCMS 2010 - www.clansphere.net'."\r\n";
      $infocontent .= '// File created by mod modules'."\r\n\r\n";
  
 -    $infocontent .= '$cs_lang = cs_translate(\''.$_POST['moddir'].'\');'."\r\n\r\n";
@@ -3046,7 +3046,7 @@ index 9514c82..f4f9327 100644
      elseif (!fwrite($infofile, $infocontent))
        $error .= cs_html_br(1) . $cs_lang['modinfo_write_failed'];
 @@ -92,12 +98,12 @@ if (!empty($_POST['submit'])) {
-     $langinfocontent .= '// ClanSphere 2010 - www.clansphere.net'."\r\n";
+     $langinfocontent .= '// OpenClanCMS 2010 - www.clansphere.net'."\r\n";
      $langinfocontent .= '// File created by mod modules'."\r\n\r\n";
  
 -    $langinfocontent .= '$cs_lang[\'mod\'] = \''.$_POST['modname']."';\r\n";
@@ -3733,7 +3733,7 @@ index 1cb13f0..5aebf75 100644
 --- a/system/cache/file.php
 +++ b/system/cache/file.php
 @@ -2,6 +2,42 @@
- // ClanSphere 2010 - www.clansphere.net
+ // OpenClanCMS 2010 - www.clansphere.net
  // $Id$
  
 +function cs_cache_token($name, $ttl = 0) {
@@ -3855,7 +3855,7 @@ index cb29567..11f9bdb 100644
 --- a/system/cache/none.php
 +++ b/system/cache/none.php
 @@ -2,6 +2,15 @@
- // ClanSphere 2010 - www.clansphere.net
+ // OpenClanCMS 2010 - www.clansphere.net
  // $Id$
  
 +function cs_cache_token($name, $ttl = 0) {
@@ -4168,7 +4168,7 @@ index 537a90e..30ada62 100644
 --- a/system/core/tools.php
 +++ b/system/core/tools.php
 @@ -2,6 +2,211 @@
- // ClanSphere 2010 - www.clansphere.net
+ // OpenClanCMS 2010 - www.clansphere.net
  // $Id$
  
 +function cs_hash_equals($known, $given) {

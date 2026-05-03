@@ -1,5 +1,5 @@
 <?php
-// ClanSphere 2010 - www.clansphere.net
+// OpenClanCMS 2010 - www.clansphere.net
 // $Id$
 
 function cs_rss_mode($func) {
@@ -21,7 +21,7 @@ function cs_rss_channel($func,$mod='',$title = 0,$link = 0,$desc = 0) {
         global $cs_main;
         $rss_file = $cs_main['php_self']['website'] . $cs_main['php_self']['dirname'] . 'uploads/rss/' . $mod . '.xml';
         $var = "<channel> \n";
-    $var .= "<generator>ClanSphere</generator>\n";
+    $var .= "<generator>OpenClanCMS</generator>\n";
         $var .= "<atom:link href=\"" . $rss_file . "\" rel=\"self\" type=\"application/rss+xml\" />\n";
     $var .= "<title>" . $title . "</title>\n";
     $var .= "<link>" . $link . "</link>\n";

@@ -1,5 +1,5 @@
 <?php
-// ClanSphere 2010 - www.clansphere.net
+// OpenClanCMS 2010 - www.clansphere.net
 // $Id$
 
 $cs_lang = cs_translate('files');
@@ -15,9 +15,11 @@ if(!empty($cs_get['catid'])) {
 }
 $order = 'files_count DESC';
 $data['files'] = cs_sql_select(__FILE__,$join,$select,$where,$order,0,$cs_option['max_navtop']);
+$data['files'] = is_array($data['files']) ? $data['files'] : array();
 
 if (!empty($data['files'])) {
-  for($run=0; $run<count($data['files']); $run++) {
+  $files_loop = count($data['files']);
+  for($run=0; $run<$files_loop; $run++) {
     $data['files'][$run]['date'] = cs_date('unix',$data['files'][$run]['files_time']);
     $data['files'][$run]['files_name'] = strlen($data['files'][$run]['files_name']) > $cs_option['max_headline_navtop'] ? cs_substr($data['files'][$run]['files_name'], 0, $cs_option['max_headline_navtop']).'..' : $data['files'][$run]['files_name'];
     $data['files'][$run]['count'] = $run+1;

@@ -136,7 +136,7 @@ class GameQ_Protocol_unreal2 extends GameQ_Protocol
         // The string is UCS-2, this approximates converting to latin-1
         $str = '';
         for ($i = 0, $ii = strlen($encstr); $i < $ii; $i += 2) {
-            $str .= $encstr{$i};
+            $str .= $encstr[$i];
         }
         
         return $str;

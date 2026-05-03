@@ -1,5 +1,5 @@
 <?php
-// ClanSphere 2010 - www.clansphere.net
+// OpenClanCMS 2010 - www.clansphere.net
 // $Id$
 
 function cs_revert_script_braces($hits) {
@@ -369,6 +369,80 @@ function cs_tokenizer_parse($template)
   return $template;
 }
 
+function cs_title_brand($title) {
+
+  $brand = htmlentities('RelaxedGamers', ENT_QUOTES, 'UTF-8');
+  $replacement = '<span class="brand-part-warm">Relaxed</span><span class="brand-part-green">Gamers</span>';
+
+  return str_replace($brand, $replacement, $title);
+}
+
+function cs_template_lang_token($token) {
+
+  $parts = explode(':', $token, 4);
+  if(count($parts) != 4)
+    return '{' . $token . '}';
+
+  $lang = cs_translate($parts[2]);
+  return isset($lang[$parts[3]]) ? $lang[$parts[3]] : $parts[3];
+}
+
+function cs_template_phrase_token($token) {
+
+  global $account, $cs_main;
+
+  $parts = explode(':', $token, 3);
+  if(count($parts) != 3)
+    return '{' . $token . '}';
+
+  $lang = empty($account['users_lang']) ? $cs_main['def_lang'] : $account['users_lang'];
+  $phrases = array(
+    'English' => array(
+      'navigate' => 'Navigation',
+      'clan' => 'Clan',
+      'media' => 'Media',
+      'stats' => 'Statistics',
+      'latest' => 'Latest',
+      'contact' => 'Contact',
+      'modules' => 'Modules',
+      'logs' => 'Logs',
+      'debug' => 'Debug',
+      'info' => 'Info',
+      'queries' => 'queries',
+      'today' => 'Today',
+      'online' => 'Online',
+      'members' => 'Members',
+      'cyberpunk_edition' => 'Cyberpunk Edition',
+      'maintenance' => 'Maintenance Mode',
+      'error_occurred' => 'An error occurred',
+      'return_home' => 'Return to homepage'
+    ),
+    'German' => array(
+      'navigate' => 'Navigation',
+      'clan' => 'Clan',
+      'media' => 'Medien',
+      'stats' => 'Statistik',
+      'latest' => 'Aktuell',
+      'contact' => 'Kontakt',
+      'modules' => 'Module',
+      'logs' => 'Logs',
+      'debug' => 'Debug',
+      'info' => 'Info',
+      'queries' => 'Abfragen',
+      'today' => 'Heute',
+      'online' => 'Online',
+      'members' => 'Mitglieder',
+      'cyberpunk_edition' => 'Cyberpunk Edition',
+      'maintenance' => 'Wartungsmodus',
+      'error_occurred' => 'Ein Fehler ist aufgetreten',
+      'return_home' => 'Zur Startseite'
+    )
+  );
+
+  $lang = isset($phrases[$lang]) ? $lang : 'English';
+  return isset($phrases[$lang][$parts[2]]) ? $phrases[$lang][$parts[2]] : $parts[2];
+}
+
 function cs_template($cs_micro, $tpl_file = 'index.htm')
 {
   global $account, $cs_logs, $cs_main;
@@ -380,8 +454,6 @@ function cs_template($cs_micro, $tpl_file = 'index.htm')
     $cs_main['ajax'] = 0;
   }
 
-  if (!empty($account['users_tpl']))
-    $cs_main['template'] = $account['users_tpl'];
   if (!empty($_GET['template']))
     $cs_main['template'] = preg_match("=^[_a-z0-9-]+$=i", $_GET['template']) ? $_GET['template'] : $cs_main['template'];
   if (!empty($_SESSION['tpl_preview']))
@@ -414,6 +486,7 @@ function cs_template($cs_micro, $tpl_file = 'index.htm')
   # Provide the def_title and a title with more information
   $replace['func:title_website'] = htmlentities($cs_main['def_title'], ENT_QUOTES, $cs_main['charset']);
   $replace['func:title'] = cs_title();
+  $replace['func:title_brand'] = cs_title_brand($replace['func:title']);
 
   # Fetch template file and parse exploded contents
   $template = cs_cache_template($tpl_file);
@@ -462,6 +535,10 @@ function cs_template($cs_micro, $tpl_file = 'index.htm')
   foreach($template AS $num => $content)
     if(array_key_exists($content, $replace))
       $result .= $replace[$content];
+    elseif(substr($content, 0, 10) == 'func:lang:')
+      $result .= cs_template_lang_token($content);
+    elseif(substr($content, 0, 12) == 'func:phrase:')
+      $result .= cs_template_phrase_token($content);
     else
       $result .= $content;
 

@@ -1,5 +1,5 @@
 <?php
-// ClanSphere 2010 - www.clansphere.net
+// OpenClanCMS 2010 - www.clansphere.net
 // $Id$
 
 $cs_lang = cs_translate('history');
@@ -9,6 +9,7 @@ $tables = 'history hs INNER JOIN {pre}_users usr ON usr.users_id = hs.users_id';
 $cells  = 'hs.history_time AS history_time, hs.history_text AS history_text, ';
 $cells .= 'hs.users_id AS users_id, usr.users_nick AS users_nick, usr.users_active AS users_active';
 $data['history'] = cs_sql_select(__FILE__,$tables,$cells,0,'hs.history_id DESC',0,0);
+$data['history'] = is_array($data['history']) ? $data['history'] : array();
 $history_loop = count ($data['history']);
 
 for($run = 0; $run < $history_loop; $run++) {

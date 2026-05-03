@@ -1,5 +1,5 @@
 <?php
-// ClanSphere 2010 - www.clansphere.net
+// OpenClanCMS 2010 - www.clansphere.net
 // $Id$
 
 $cs_lang = cs_translate('wars');
@@ -44,6 +44,7 @@ $from = 'wars war LEFT JOIN {pre}_squads sqd ON war.squads_id = sqd.squads_id ';
 $from .= 'LEFT JOIN {pre}_clans cln ON war.clans_id = cln.clans_id ';
 
 $data['wars'] = cs_sql_select(__FILE__,$from,$select,$where,$order,$start,$account['users_limit'],0,$where_params);
+$data['wars'] = is_array($data['wars']) ? $data['wars'] : array();
 $count_wars = count($data['wars']);
 
 for ($run = 0; $run < $count_wars; $run++) {

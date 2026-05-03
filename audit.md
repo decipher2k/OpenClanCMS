@@ -2,7 +2,7 @@
 
 Datum: 2026-05-03
 
-Scope: Vollstaendige statische Sicherheitspruefung der ClanSphere 2011.4.4-r2 Codebase in diesem Workspace. Geprueft wurden Authentifizierung, Session-Handling, CSRF, Token-Generierung, SQL-Konstruktion, Includes, Uploads, Dateioperationen, Redirects/Header, Installer, Template-/HTML-Ausgabe, AJAX/JavaScript und Webserver-Upload-Schutz.
+Scope: Vollstaendige statische Sicherheitspruefung der OpenClanCMS 2026.1.1-r2 Codebase in diesem Workspace. Geprueft wurden Authentifizierung, Session-Handling, CSRF, Token-Generierung, SQL-Konstruktion, Includes, Uploads, Dateioperationen, Redirects/Header, Installer, Template-/HTML-Ausgabe, AJAX/JavaScript und Webserver-Upload-Schutz.
 
 ## Zusammenfassung
 

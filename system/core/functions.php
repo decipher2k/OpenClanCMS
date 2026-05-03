@@ -1,5 +1,5 @@
 <?php
-// ClanSphere 2010 - www.clansphere.net
+// OpenClanCMS 2010 - www.clansphere.net
 // $Id$
 
 function cs_error($file, $message, $log_only = 0) {
@@ -25,7 +25,7 @@ function cs_error_internal($error = 0, $report = 0) {
   $cs_main['error_internal'] = $error;
   $cs_main['error_reported'] = $report;
 
-  $cs_main['def_title'] = 'ClanSphere';
+  $cs_main['def_title'] = 'OpenClanCMS';
   $cs_main['def_tpl'] = 'install';
   $cs_main['mod'] = 'errors';
   $cs_main['action'] = '500';
@@ -198,10 +198,10 @@ function cs_init($predefined) {
   global $account, $com_lang, $cs_db, $cs_logs, $cs_main, $cs_micro, $cs_template;
 
   $cs_micro = explode(' ', microtime()); # starting parsetime
-  $cs_logs = array('php_errors' => '', 'errors' => '', 'sql' => '', 'queries' => 0, 'warnings' => 1, 'dir' => 'uploads/logs');
+  $cs_logs = array('php_errors' => '', 'errors' => '', 'sql' => array(), 'queries' => 0, 'warnings' => 1, 'dir' => 'uploads/logs');
   $cs_main['cellspacing'] = 1;
   $cs_main['def_lang'] = empty($cs_main['def_lang']) ? 'English' : $cs_main['def_lang'];
-  $cs_main['def_theme'] = empty($cs_main['def_theme']) ? 'base' : $cs_main['def_theme'];
+  $cs_main['def_theme'] = empty($cs_main['def_theme']) ? 'cyberpunk' : $cs_main['def_theme'];
   $cs_main['xsrf_protection'] = true;
   $cs_main['zlib'] = true;
   
@@ -259,7 +259,6 @@ function cs_init($predefined) {
 
   if(!empty($predefined['init_sql'])) {
     require_once 'system/core/account.php';
-    $cs_main['def_theme'] = empty($account['users_theme']) ? $cs_main['def_theme'] : $account['users_theme']; 
   }
   
   # determine users language
@@ -288,7 +287,7 @@ function cs_init($predefined) {
   # search for possible mod and action errors
   $cs_main = cs_content_check($cs_main);
 
-  $cs_main['template'] = empty($cs_main['def_tpl']) ? 'clansphere' : $cs_main['def_tpl'];
+  $cs_main['template'] = empty($cs_main['def_tpl']) ? 'cyberpunk' : $cs_main['def_tpl'];
   $cs_template = cs_template_info($cs_main['template']);
   if(!empty($_GET['template']) AND preg_match("=^[_a-z0-9-]+$=i",$_GET['template']))
     $cs_main['template'] = $_GET['template'];
@@ -415,6 +414,9 @@ function cs_log($target,$content) {
 function cs_log_sql($file, $sql, $action = 0) {
 
   global $cs_logs, $account;
+  if(!isset($cs_logs['sql']) OR !is_array($cs_logs['sql']))
+    $cs_logs['sql'] = array();
+
   $cs_logs['queries']++;
   $new = $cs_logs['queries'] . ') ' . $sql . "\n";
   $cs_logs['sql'][$file] = isset($cs_logs['sql'][$file]) ? $cs_logs['sql'][$file] . $new : $new;

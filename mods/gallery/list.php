@@ -1,5 +1,5 @@
 <?php
-// ClanSphere 2010 - www.clansphere.net
+// OpenClanCMS 2010 - www.clansphere.net
 // $Id$
 
 $cs_lang = cs_translate('gallery');
@@ -27,6 +27,7 @@ if (empty($folders_id)) {
   $where = "gallery_status = '1' AND gallery_access <= '" . $access_id . "'";
   $order = 'gallery_id DESC';
   $cs_gallery = cs_sql_select(__FILE__, $from, $select, $where, $order, $start, 0);
+  $cs_gallery = is_array($cs_gallery) ? $cs_gallery : array();
   $gallery_loop = count($cs_gallery);
   
   $from = 'folders';
@@ -34,6 +35,7 @@ if (empty($folders_id)) {
   $where = "folders_mod = 'gallery' AND folders_access <= '" . $access_id . "'";
   $order = 'folders_position ASC';
   $folders = cs_sql_select(__FILE__, $from, $select, $where, $order, '', 0);
+  $folders = is_array($folders) ? $folders : array();
   $folders_loop = count($folders);
   
   if (empty($folders_loop)) {
@@ -77,10 +79,12 @@ if (empty($folders_id)) {
         $where = "sub.sub_id='" . $a['folders_id'] . "'";
         $order = "gallery_id DESC";
         $count = cs_sql_select(__FILE__, $from, $select, $where, 0, 0, 0);
+        $count = is_array($count) ? $count : array();
         $count2 = cs_sql_select(__FILE__, $from, $select, $where, $order, 0, 1);
+        $count2 = is_array($count2) ? $count2 : array();
         $plus = count($count);
         
-        if ($last_update <= $count2['gallery_time']) {
+        if (!empty($count2['gallery_time']) AND $last_update <= $count2['gallery_time']) {
           $last_update = $count2['gallery_time'];
         }
         
@@ -167,6 +171,7 @@ if (empty($folders_id)) {
       $where = "gal.gallery_status = '1' AND vod.voted_mod = 'gallery'";
       $order = 'gal.gallery_id ASC';
       $cs_gallery_voted = cs_sql_select(__FILE__, $from, $select, $where, $order, 0, 0);
+      $cs_gallery_voted = is_array($cs_gallery_voted) ? $cs_gallery_voted : array();
       $voted_loop = count($cs_gallery_voted);
       
       for ($run = 0; $run < $voted_loop; $run++) {
@@ -268,19 +273,22 @@ if ($folders_id >= 1) {
   }
   
   $cs_gallery = cs_sql_select(__FILE__, $from, $select, $where, $order, $start, $cols_rows);
+  $cs_gallery = is_array($cs_gallery) ? $cs_gallery : array();
   $gallery_loop = count($cs_gallery);
   $gallery_count = cs_sql_count(__FILE__, 'gallery', $where);
   $from = 'folders';
   $select = 'folders_id, sub_id, folders_name, folders_picture, folders_text, folders_access';
   $where = "folders_mod = 'gallery' AND folders_id = '" . $folders_id . "'";
   $folders_current = cs_sql_select(__FILE__, $from, $select, $where);
+  $folders_current = is_array($folders_current) ? $folders_current : array();
   
-  if ($folders_current['folders_access'] > $access_id) {
+  if (empty($folders_current) OR $folders_current['folders_access'] > $access_id) {
     return;
   }
   
   $where = "folders_mod = 'gallery'";
   $folders = cs_sql_select(__FILE__, $from, $select, $where, 0, 0, 0);
+  $folders = is_array($folders) ? $folders : array();
   $folders_loop = count($folders);
   $data['link']['gallery'] = cs_link($cs_lang['mod_name'], 'gallery', 'list');
   $data['link']['subfolders'] = make_folders_head($folders, $folders_current['sub_id'], $folders_current['folders_name']);

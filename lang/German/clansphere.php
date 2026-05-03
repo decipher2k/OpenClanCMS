@@ -1,8 +1,8 @@
 <?php
-// ClanSphere 2010 - www.clansphere.net 
+// OpenClanCMS 2010 - www.clansphere.net 
 // $Id$
 
-$cs_lang['mod_name']  = 'ClanSphere';
+$cs_lang['mod_name']  = 'OpenClanCMS';
 $cs_lang['modinfo']  = 'Hauptmodul mit CMS-Kern';
 $cs_lang['modules_list']  = 'Alle Module sind von hier aus erreichbar.';
 $cs_lang['languages']  = 'Sprachen';
@@ -203,7 +203,7 @@ $cs_lang['body_version'] = 'Nach neuen Releases suchen';
 $cs_lang['status'] = 'Status';
 $cs_lang['installed'] = 'Installiert';
 $cs_lang['available'] = 'Verf&uuml;gbar';
-$cs_lang['up_to_date'] = 'Ihre Version von ClanSphere ist aktuell';
+$cs_lang['up_to_date'] = 'Ihre Version von OpenClanCMS ist aktuell';
 $cs_lang['new_release'] = 'Es ist eine neue Version zum Download vorhanden.';
 $cs_lang['visit_dlpage'] = ' Downloadseite besuchen';
 
@@ -211,11 +211,11 @@ $cs_lang['need_url_fopen'] = 'Fehler: Die PHP-Option "allow_url_fopen" muss akti
 $cs_lang['file_not_read'] = 'Fehler: Die Remote-Datei zur &Uuml;berpr&uuml;fung konnte nicht geladen werden';
 
 // Security News
-$cs_lang['new_info'] = 'Neue Mitteilung vom ClanSphere Team';
+$cs_lang['new_info'] = 'Neue Mitteilung vom OpenClanCMS Team';
 $cs_lang['view'] = 'Anzeigen';
 $cs_lang['read'] = 'Gelesen';
 $cs_lang['showall'] = 'Alle anzeigen';
-$cs_lang['new_infos'] = 'Alle Mitteilungen vom ClanSphere Team';
+$cs_lang['new_infos'] = 'Alle Mitteilungen vom OpenClanCMS Team';
 $cs_lang['del_install_file'] = 'Achtung: Die Datei "install.php" ist aus Sicherheitsgr&uuml;nden zu entfernen';
 
 // Options

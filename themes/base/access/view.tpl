@@ -13,7 +13,7 @@
     <td class="leftb">{lang:name}</td>
   </tr>
   <tr>
-    <td class="leftc">{icon:package_system} ClanSphere</td>
+    <td class="leftc">{icon:package_system} OpenClanCMS</td>
     <td class="leftb">{lang:clansphere} </td>
   </tr>
   {loop:access}

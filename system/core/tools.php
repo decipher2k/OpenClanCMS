@@ -1,5 +1,5 @@
 <?php
-// ClanSphere 2010 - www.clansphere.net
+// OpenClanCMS 2010 - www.clansphere.net
 // $Id$
 
 function cs_password_hash($password) {
@@ -192,16 +192,16 @@ function cs_xsrf_needs_get_key($params, $mod = 0, $action = 0) {
   }
 
   $params = str_replace('&amp;', '&', (string) $params);
-  if($mod == 'board' AND $action == 'sort' AND preg_match('=(^|[&/])(board|cat)(=|/)=i', $params))
+  if($mod == 'board' AND $action == 'sort' AND preg_match('#(^|[&/])(board|cat)(=|/)#i', $params))
     return true;
 
-  if($mod == 'board' AND $action == 'reportdone' AND preg_match('=(^|[&/])id(=|/)=i', $params))
+  if($mod == 'board' AND $action == 'reportdone' AND preg_match('#(^|[&/])id(=|/)#i', $params))
     return true;
 
-  if($mod == 'messages' AND $action == 'archiv' AND preg_match('=(^|[&/])id(=|/)=i', $params))
+  if($mod == 'messages' AND $action == 'archiv' AND preg_match('#(^|[&/])id(=|/)#i', $params))
     return true;
 
-  if($mod == 'wars' AND $action == 'rounds' AND preg_match('=(^|[&/])(up|down)(=|/)=i', $params))
+  if($mod == 'wars' AND $action == 'rounds' AND preg_match('#(^|[&/])(up|down)(=|/)#i', $params))
     return true;
 
   foreach($dangerous AS $key => $value) {

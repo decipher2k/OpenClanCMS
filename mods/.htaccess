@@ -1,5 +1,5 @@
-## Disallow direct access to PHP files inside mods directory
-<FilesMatch "\.php$">
-  Order deny,allow
-  Deny from all
-</FilesMatch>
+## Uncomment the following to not show php errors inside here
+## Path disclosure protection, but may cause problems on bad configured webservers
+
+# php_flag display_startup_errors off
+# php_flag display_errors off

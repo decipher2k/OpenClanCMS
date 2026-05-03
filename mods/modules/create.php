@@ -1,5 +1,5 @@
 <?php
-// ClanSphere 2010 - www.clansphere.net
+// OpenClanCMS 2010 - www.clansphere.net
 // $Id$
 
 $cs_lang = cs_translate('modules');
@@ -61,7 +61,7 @@ if (!empty($_POST['submit'])) {
     // info.php
 
     $infocontent  = '<?php'."\r\n";
-    $infocontent .= '// ClanSphere 2010 - www.clansphere.net'."\r\n";
+    $infocontent .= '// OpenClanCMS 2010 - www.clansphere.net'."\r\n";
     $infocontent .= '// File created by mod modules'."\r\n\r\n";
 
     $infocontent .= '$cs_lang = cs_translate(' . var_export($moddir, true) . ');'."\r\n\r\n";
@@ -95,7 +95,7 @@ if (!empty($_POST['submit'])) {
     // Lang file
 
     $langinfocontent  = '<?php'."\r\n";
-    $langinfocontent .= '// ClanSphere 2010 - www.clansphere.net'."\r\n";
+    $langinfocontent .= '// OpenClanCMS 2010 - www.clansphere.net'."\r\n";
     $langinfocontent .= '// File created by mod modules'."\r\n\r\n";
 
     $langinfocontent .= '$cs_lang[\'mod\'] = ' . var_export($_POST['modname'], true) . ";\r\n";

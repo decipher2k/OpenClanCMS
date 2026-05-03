@@ -33,7 +33,7 @@ $cs_lang['done']        = 'Done';
 $cs_lang['next_step']   = 'Next step';
 
 // users_home.php
-$cs_lang['wizard_welcome']  = 'Welcome inside your ClanSphere environment';
+$cs_lang['wizard_welcome']  = 'Welcome inside your OpenClanCMS environment';
 $cs_lang['wizard_info']      = 'We recommend to use the wizard for the first steps after the installation!';
 $cs_lang['wizard_start']    = 'Start assistent';
 $cs_lang['wizard_turnoff']  = 'Turn this message off';

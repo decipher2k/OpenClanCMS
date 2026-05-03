@@ -1,12 +1,12 @@
 <?php
-// ClanSphere 2010 - www.clansphere.net
+// OpenClanCMS 2010 - www.clansphere.net
 // $Id$
 
 # Overwrite global settings by using the following array
 $cs_main = array( 'charset'         => 'UTF-8',
                   'def_action'      => 'list',
                   'def_mod'         => 'install',
-                  'def_title'       => 'ClanSphere Installation',
+                  'def_title'       => 'OpenClanCMS Installation',
                   'def_tpl'         => 'install',
                   'def_parameters'  => '',
                   'def_width'       => '100%',

@@ -1,5 +1,5 @@
 <?php
-// ClanSphere 2010 - www.clansphere.net
+// OpenClanCMS 2010 - www.clansphere.net
 // $Id$
 
 function cs_sql_count($cs_file, $sql_table, $sql_where = 0, $distinct = 0, $params = array()) {
@@ -131,7 +131,7 @@ function cs_sql_option($cs_file, $mod) {
         cs_error_sql($cs_file, 'cs_sql_option', cs_sql_error(0, $sql_query), 1);
       }
       cs_log_sql($cs_file, $sql_query);
-      if(count($cs_template)) {
+      if(!empty($cs_template)) {
         foreach($cs_template AS $navlist => $value) {
           if($navlist == $mod) {
           $new_result = array_merge($new_result,$value);

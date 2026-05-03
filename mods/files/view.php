@@ -1,5 +1,5 @@
 <?php
-// ClanSphere 2010 - www.clansphere.net
+// OpenClanCMS 2010 - www.clansphere.net
 // $Id$
 
 $cs_lang = cs_translate('files');
@@ -21,6 +21,11 @@ $select .= ', fls.files_vote AS files_vote, fls.files_size AS files_size, fls.fi
 $where = 'cat.categories_access <= ' . (int) $account['access_files'] . ' AND fls.files_id = ' . $file_id;
 $cs_file = cs_sql_select(__FILE__,$from,$select,$where);
 
+if(empty($cs_file)) {
+  require 'mods/errors/404.php';
+  return;
+}
+
 if(!empty($_POST['brokenlink'])) {
   require_once('mods/notifymods/functions.php');
   notifymods_mail('files', $account['users_id'], $cs_file['files_name']);
@@ -33,6 +38,7 @@ $from = 'voted';
 $select = 'users_id, voted_answer';
 $where = 'voted_fid = ' . $file_id . ' AND voted_mod = \'files\'';
 $cs_voted = cs_sql_select(__FILE__,$from,$select,$where,0,0,0);
+$cs_voted = is_array($cs_voted) ? $cs_voted : array();
 $voted_loop = count($cs_voted);
 
 if(!empty($_POST['voted_answer']))
@@ -153,13 +159,9 @@ include_once('mods/comments/functions.php');
 $where_com = 'comments_mod = ? AND comments_fid = ?';
 $count_com = cs_sql_count(__FILE__,'comments',$where_com,0,array('files', $file_id));
 
-if(empty($cs_file))
-  require 'mods/errors/404.php';
-else {
-  echo cs_subtemplate(__FILE__,$data,'files','view');
+echo cs_subtemplate(__FILE__,$data,'files','view');
 
-  if(!empty($count_com))
-    echo cs_comments_view($file_id,'files','view',$count_com);
+if(!empty($count_com))
+  echo cs_comments_view($file_id,'files','view',$count_com);
 
-  echo cs_comments_add($file_id,'files',$cs_file['files_close']);
-}
+echo cs_comments_add($file_id,'files',$cs_file['files_close']);

@@ -1,5 +1,5 @@
 <?php
-// ClanSphere 2010 - www.clansphere.net
+// OpenClanCMS 2010 - www.clansphere.net
 // $Id$
 
 $cs_lang = cs_translate('wars');
@@ -31,6 +31,7 @@ $data['pages']['choice'] = cs_pages('wars','list',$wars_count,$start,$squads_id,
 $data['url']['form'] = cs_url('wars','list');
 $cid = "squads_fightus = '0'";
 $data['squads'] = cs_sql_select(__FILE__,'squads','squads_name, squads_id',$cid,'squads_name',0,0);
+$data['squads'] = is_array($data['squads']) ? $data['squads'] : array();
 $count_squads = count($data['squads']);
 
 for ($run = 0; $run < $count_squads; $run++) {
@@ -45,6 +46,7 @@ $select = 'war.games_id AS games_id, war.wars_date AS wars_date, war.wars_status
 $from = 'wars war INNER JOIN {pre}_categories cat ON war.categories_id = cat.categories_id ';
 $from .= 'INNER JOIN {pre}_clans cln ON war.clans_id = cln.clans_id ';
 $cs_wars = cs_sql_select(__FILE__,$from,$select,$where,$order,$start,$account['users_limit'],0,$where_params);
+$cs_wars = is_array($cs_wars) ? $cs_wars : array();
 
 $data['wars'] = '';
 $count_wars = count($cs_wars);
