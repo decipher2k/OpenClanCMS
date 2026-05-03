@@ -10,6 +10,9 @@ Changelog:
 
 The patch against clansphere can be found at complete-security-audit.patch
 
+*The ClanSphere Readme*
+
+
   _____ _              _____       _                   
  / ____| |            / ____|     | |                  
 | |    | | __ _ _ __ | (___  _ __ | |__   ___ _ __ ___ 
