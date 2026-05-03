@@ -8,7 +8,7 @@ Changelog:
   -[...]
 -Migrated to PHP 8.x
 
-The patch against clansphere can be found at complete-security-audit.patch
+The patch for clansphere_2011.4.4-r2 can be found in complete-security-audit.patch
 
 *The ClanSphere Readme*
 
