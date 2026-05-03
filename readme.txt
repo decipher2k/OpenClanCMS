@@ -4,7 +4,7 @@ Changelog:
 -Fixed several dozen security flaws
   -SQL prepared statements
   -CSRF tokens
-  -Password hashing
+  -Password hashing using salted Argon2id
   -[...]
 -Migrated to PHP 8.x
 
