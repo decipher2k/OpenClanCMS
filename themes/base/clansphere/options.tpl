@@ -153,9 +153,18 @@
       </td>
     </tr>
     <tr>
+      <td class="leftc">{icon:ksysguard} hCaptcha Site Key</td>
+      <td class="leftb"><input type="text" name="hcaptcha_sitekey" value="{options:hcaptcha_sitekey}" maxlength="80" size="50" />
+      </td>
+    </tr>
+    <tr>
+      <td class="leftc">{icon:ksysguard} hCaptcha Secret Key</td>
+      <td class="leftb"><input type="password" name="hcaptcha_secret" value="{options:hcaptcha_secret}" maxlength="80" size="50" />
+      <br />{lang:hcaptcha_info}</td>
+    </tr>
+    <tr>
       <td class="leftc">{icon:ksysguard} {lang:options}</td>
-      <td class="leftb"><input type="submit" name="submit" value="{lang:edit}" />
-              </td>
+      <td class="leftb"><input type="submit" name="submit" value="{lang:edit}" /></td>
     </tr>
   </table>
 </form>

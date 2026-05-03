@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{func:title} :: ADMIN</title>
+  {clansphere:navmeta}
+  <style>
+    :root {
+      --bg: #0a0a0b; --bg2: #111114; --bg3: #1a1a1f;
+      --green: #00cc3a; --green-dim: #006622;
+      --amber: #b8942e; --amber-dim: #5c4810;
+      --red: #cc3333; --text: #c0c0c0; --text-dim: #707070; --border: #222228;
+      --font: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      --mono: 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { font-size: 14px; }
+    body { font-family: var(--font); background: var(--bg); color: var(--text); line-height: 1.6; min-height: 100vh; }
+    a { color: var(--green); text-decoration: none; transition: color .2s; }
+    a:hover { color: var(--amber); }
+    h2 { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--green); border-bottom: 1px solid var(--border); padding: 0.5rem 0.8rem; margin: 0; }
+    input, select, textarea, button {
+      background: var(--bg2); color: var(--text); border: 1px solid var(--border);
+      padding: 0.35rem 0.5rem; font-family: var(--font); font-size: 0.85rem; border-radius: 2px;
+    }
+    input:focus, select:focus, textarea:focus { outline: none; border-color: var(--green); box-shadow: 0 0 6px rgba(0,204,58,0.15); }
+    input[type=submit], button {
+      background: var(--green-dim); color: var(--green); cursor: pointer; text-transform: uppercase;
+      letter-spacing: 0.06em; font-size: 0.75rem; padding: 0.4rem 1rem; font-weight: 600; border-color: var(--green);
+    }
+    input[type=submit]:hover { background: var(--green); color: #000; }
+    .admin-layout { display: grid; grid-template-columns: 200px 1fr 200px; min-height: 100vh; }
+    .admin-header {
+      grid-column: 1/-1; display: flex; align-items: center; justify-content: space-between;
+      padding: 0.5rem 1rem; background: var(--bg2); border-bottom: 1px solid var(--border);
+      font-family: var(--mono); font-size: 0.75rem;
+    }
+    .admin-header .brand { color: var(--red); letter-spacing: 0.06em; }
+    .admin-header .brand span { color: var(--amber); }
+    .admin-nav {
+      background: var(--bg2); border-right: 1px solid var(--border); padding: 0.5rem 0;
+      font-size: 0.75rem; overflow-y: auto;
+    }
+    .admin-nav a { display: block; padding: 0.3rem 0.8rem; color: var(--text-dim); border-left: 2px solid transparent; }
+    .admin-nav a:hover { background: var(--bg3); color: var(--green); border-left-color: var(--green); }
+    .admin-nav .navhead { padding: 0.6rem 0.8rem 0.2rem; color: var(--amber); font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.1em; }
+    .admin-nav .navbody { margin-bottom: 0.5rem; }
+    .admin-content { padding: 1.2rem; min-width: 0; }
+    .admin-content table.forum, .admin-content .forum {
+      width: 100%; border-collapse: collapse; font-size: 0.85rem;
+    }
+    .admin-content table.forum td { padding: 0.4rem 0.6rem; border-bottom: 1px solid var(--border); }
+    .admin-content table.forum .headb { background: var(--green-dim); color: var(--green); font-weight: 600; font-size: 0.8rem; text-transform: uppercase; }
+    .admin-content table.forum .leftb { background: var(--bg2); }
+    .admin-content table.forum .leftc { background: var(--bg3); width: 160px; color: var(--amber); font-weight: 500; font-size: 0.75rem; }
+    .admin-sidebar { background: var(--bg2); border-left: 1px solid var(--border); padding: 0.8rem; font-size: 0.7rem; }
+    .admin-sidebar .widget { margin-bottom: 1rem; }
+    .admin-sidebar ul { list-style: none; }
+    .admin-sidebar li { padding: 0.15rem 0; color: var(--text-dim); }
+    @media (max-width: 900px) { .admin-layout { grid-template-columns: 1fr; } .admin-nav, .admin-sidebar { display: none; } }
+  </style>
+  {func:stylesheet}
+  {func:javascript}
+</head>
+<body>
+
+<div class="admin-layout">
+  <header class="admin-header">
+    <div class="brand">[ <span>ADMIN</span> ]</div>
+    <div>{func:title}</div>
+    <div class="login-area">{users:navlogin:style=icons}</div>
+  </header>
+
+  <nav class="admin-nav">
+    <div class="navhead">Modules</div>
+    <div class="navbody">{clansphere:navadmin}</div>
+  </nav>
+
+  <main class="admin-content">
+    {func:show}
+  </main>
+
+  <aside class="admin-sidebar">
+    <div class="widget">
+      <h2>Logs</h2>
+      {logs:navlist}
+    </div>
+    <div class="widget">
+      <h2>Debug</h2>
+      {clansphere:navdebug}
+    </div>
+    <div class="widget">
+      <h2>Info</h2>
+      <ul>
+        <li>{func:queries} queries</li>
+        <li>{func:parse} ms</li>
+        <li>{func:memory}</li>
+      </ul>
+    </div>
+  </aside>
+</div>
+
+</body>
+</html>

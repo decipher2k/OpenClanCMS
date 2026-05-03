@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Error :: ClanSphere</title>
+  <style>
+    :root {
+      --bg: #0a0a0b; --bg2: #111114;
+      --green: #00cc3a; --amber: #b8942e; --red: #cc3333;
+      --text: #c0c0c0; --text-dim: #707070; --border: #222228;
+      --font: 'Segoe UI', system-ui, sans-serif;
+      --mono: 'Fira Code', 'Consolas', monospace;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: var(--font); background: var(--bg); color: var(--text); display: flex; align-items: center; justify-content: center; min-height: 100vh; text-align: center; }
+    .error { max-width: 600px; padding: 3rem; }
+    .code { font-family: var(--mono); font-size: 6rem; color: var(--red); line-height: 1; margin-bottom: 1rem; text-shadow: 0 0 30px rgba(204,51,51,0.3); }
+    h1 { font-size: 1.4rem; color: var(--green); margin-bottom: 1rem; font-weight: 400; }
+    p { color: var(--text-dim); margin-bottom: 2rem; line-height: 1.8; }
+    a { color: var(--green); text-decoration: none; }
+    a:hover { color: var(--amber); }
+    .footer { margin-top: 3rem; font-family: var(--mono); font-size: 0.7rem; color: var(--text-dim); }
+  </style>
+</head>
+<body>
+  <div class="error">
+    <div class="code">{func:show}</div>
+    <h1>An error occurred</h1>
+    <p>{func:errors}</p>
+    <p><a href="{func:path}">Return to homepage</a></p>
+    <div class="footer">{func:queries} queries &middot; {func:parse} ms</div>
+  </div>
+</body>
+</html>

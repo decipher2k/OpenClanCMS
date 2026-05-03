@@ -93,8 +93,12 @@ if(empty($_SESSION['users_id'])) {
       $_SESSION['login_attempts'] = array('count' => 0, 'last' => 0, 'locked' => 0);
 
     if($_SESSION['login_attempts']['locked'] > $now) {
-      $login['error'] = 'user_login_notfound';
-      unset($_POST['login']);
+      if(!isset($_POST['h-captcha-response']) OR !cs_hcaptcha_verify($_POST['h-captcha-response'])) {
+        $login['error'] = 'user_login_notfound';
+        unset($_POST['login']);
+      } else {
+        $_SESSION['login_attempts'] = array('count' => 0, 'last' => 0, 'locked' => 0);
+      }
     }
 
     if(isset($_POST['cookie'])) {

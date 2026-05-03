@@ -15,9 +15,15 @@
          <input type="radio" name="cookie" value="0" checked="checked" />{lang:no}
        </td>
      </tr>
-     <tr>
-       <td class="leftc">{icon:ksysguard} {lang:options}</td>
-       <td class="leftb"><input type="submit" name="login" value="{lang:submit}" /></td>
-     </tr>
+      {if:hcaptcha}
+      <tr>
+        <td class="leftc">{icon:lockoverlay} Verifikation</td>
+        <td class="leftb">{hcaptcha:widget}</td>
+      </tr>
+      {stop:hcaptcha}
+      <tr>
+        <td class="leftc">{icon:ksysguard} {lang:options}</td>
+        <td class="leftb"><input type="submit" name="login" value="{lang:submit}" /></td>
+      </tr>
    </table>
 </form>

@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{func:title}</title>
+  {clansphere:navmeta}
+  <style>
+    :root {
+      --bg: #0a0a0b;
+      --bg2: #111114;
+      --bg3: #1a1a1f;
+      --green: #00cc3a;
+      --green-dim: #006622;
+      --amber: #b8942e;
+      --amber-dim: #5c4810;
+      --text: #c0c0c0;
+      --text-dim: #707070;
+      --border: #222228;
+      --glow: 0 0 8px rgba(0,204,58,0.15);
+      --font: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      --mono: 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { font-size: 15px; }
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+    a { color: var(--green); text-decoration: none; transition: color .2s; }
+    a:hover { color: var(--amber); text-shadow: 0 0 6px rgba(184,148,46,0.3); }
+    h1, h2, h3 { color: var(--green-dim); font-weight: 400; letter-spacing: 0.02em; }
+    h2 { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 0.75rem; border-bottom: 1px solid var(--border); padding-bottom: 0.4rem; color: var(--green); }
+    hr { border: none; border-top: 1px solid var(--border); margin: 1.5rem 0; }
+    img { max-width: 100%; height: auto; }
+    input, select, textarea, button {
+      background: var(--bg2); color: var(--text); border: 1px solid var(--border);
+      padding: 0.4rem 0.6rem; font-family: var(--font); font-size: 0.9rem;
+      border-radius: 2px; transition: border-color .2s, box-shadow .2s;
+    }
+    input:focus, select:focus, textarea:focus, button:focus {
+      outline: none; border-color: var(--green); box-shadow: var(--glow);
+    }
+    button, input[type=submit] {
+      background: var(--green-dim); color: var(--green); border-color: var(--green);
+      cursor: pointer; text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.8rem;
+      padding: 0.5rem 1.2rem; font-weight: 600;
+    }
+    button:hover, input[type=submit]:hover { background: var(--green); color: #000; }
+
+    /* LAYOUT */
+    .layout { display: grid; grid-template-columns: 220px 1fr 260px; min-height: 100vh; }
+    .layout-admin { grid-template-columns: 200px 1fr 220px; }
+
+    /* HEADER */
+    .site-header {
+      grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between;
+      padding: 1rem 1.5rem; border-bottom: 1px solid var(--border); background: var(--bg2);
+      font-family: var(--mono); font-size: 0.8rem; gap: 1rem;
+    }
+    .site-header .brand { font-size: 1.1rem; color: var(--green); letter-spacing: 0.06em; }
+    .site-header .brand span { color: var(--amber); }
+    .site-header .nav-top { display: flex; gap: 1.5rem; }
+    .site-header .login-area { font-size: 0.75rem; }
+    .site-header .login-area a { color: var(--amber); }
+
+    /* LEFT SIDEBAR */
+    .sidebar-left {
+      background: var(--bg2); border-right: 1px solid var(--border);
+      padding: 1.2rem 1rem; font-size: 0.8rem;
+    }
+    .sidebar-left .nav-section { margin-bottom: 1.5rem; }
+    .sidebar-left ul { list-style: none; }
+    .sidebar-left li { margin-bottom: 0.2rem; }
+    .sidebar-left a { display: block; padding: 0.2rem 0.4rem; border-radius: 2px; color: var(--text-dim); }
+    .sidebar-left a:hover { background: var(--bg3); color: var(--green); }
+
+    /* MAIN CONTENT */
+    .main-content { padding: 1.5rem; min-width: 0; }
+    .main-content .forum, .main-content table.forum {
+      width: 100%; border-collapse: collapse; font-size: 0.9rem;
+    }
+    .main-content .forum td, .main-content table.forum td {
+      padding: 0.5rem 0.7rem; border-bottom: 1px solid var(--border); vertical-align: top;
+    }
+    .main-content .forum .headb, .main-content table.forum .headb {
+      background: var(--green-dim); color: var(--green); font-weight: 600;
+      font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.08em;
+    }
+    .main-content .forum .leftb, .main-content table.forum .leftb { background: var(--bg2); }
+    .main-content .forum .leftc, .main-content table.forum .leftc {
+      background: var(--bg3); width: 180px; color: var(--amber); font-weight: 500; font-size: 0.8rem;
+    }
+    .main-content .forum .centerc { text-align: center; }
+
+    /* RIGHT SIDEBAR */
+    .sidebar-right {
+      background: var(--bg2); border-left: 1px solid var(--border);
+      padding: 1.2rem 1rem; font-size: 0.8rem;
+    }
+    .sidebar-right .widget { margin-bottom: 1.5rem; }
+    .sidebar-right ul { list-style: none; }
+    .sidebar-right li { margin-bottom: 0.3rem; }
+    .sidebar-right a { color: var(--text-dim); }
+    .sidebar-right a:hover { color: var(--green); }
+
+    /* FOOTER */
+    .site-footer {
+      grid-column: 1 / -1; border-top: 1px solid var(--border); background: var(--bg2);
+      padding: 1rem 1.5rem; font-size: 0.7rem; color: var(--text-dim);
+      display: flex; justify-content: space-between;
+    }
+
+    /* STATUS & BADGES */
+    .online { color: var(--green); }
+    .offline { color: #555; }
+    .uonline, .uoffline, .uinactive { font-size: 0.75rem; padding: 0.1rem 0.4rem; border-radius: 2px; }
+    .uonline { background: rgba(0,204,58,0.1); color: var(--green); }
+    .uoffline { background: transparent; color: #555; }
+    .uinactive { background: rgba(184,148,46,0.1); color: var(--amber); }
+
+    /* FORMS */
+    form.noajax .form { width: 100%; }
+
+    /* RESPONSIVE */
+    @media (max-width: 1000px) {
+      .layout { grid-template-columns: 1fr; }
+      .sidebar-left, .sidebar-right { display: none; }
+    }
+
+    /* ERROR PAGE */
+    .error-page { text-align: center; padding: 4rem 2rem; }
+    .error-page h1 { font-size: 4rem; color: var(--green); font-family: var(--mono); margin-bottom: 1rem; }
+    .error-page p { color: var(--text-dim); margin-bottom: 2rem; }
+
+    /* ABCODE QUOTES */
+    .c-quote { border-left: 2px solid var(--green-dim); margin: 0.8rem 0; padding: 0.5rem 0.8rem; background: var(--bg2); border-radius: 0 3px 3px 0; }
+    .c-quote-author { display: block; color: var(--amber); font-size: 0.75rem; margin-bottom: 0.3rem; text-transform: uppercase; letter-spacing: 0.05em; }
+    .c-quote-body { color: var(--text); }
+
+    /* CLIPS / SPOILERS */
+    .clip { color: var(--amber); font-size: 0.8rem; }
+    .clip + div { background: var(--bg2); border: 1px solid var(--border); padding: 0.6rem; margin-top: 0.3rem; border-radius: 2px; }
+
+    /* CODE BLOCKS */
+    code, pre { font-family: var(--mono); font-size: 0.8rem; background: var(--bg2); border: 1px solid var(--border); padding: 0.5rem; border-radius: 2px; overflow-x: auto; }
+  </style>
+  {func:stylesheet}
+  {func:javascript}
+</head>
+<body>
+
+<div class="layout">
+  <header class="site-header">
+    <div class="brand">&gt; <span>CLAN</span>SPHERE_</div>
+    <div class="nav-top">{wars:navtop}</div>
+    <div class="login-area">{users:navlogin}</div>
+  </header>
+
+  <aside class="sidebar-left">
+    <div class="nav-section">
+      <h2>Navigate</h2>
+      <ul>
+        <li><a href="{url:news_recent}">// News</a></li>
+        <li><a href="{url:board}">// Board</a></li>
+        <li><a href="{url:gallery}">// Gallery</a></li>
+        <li><a href="{url:search}">// Search</a></li>
+        <li><a href="{url:gbook}">// Guestbook</a></li>
+        <li><a href="{url:shoutbox}">// Shoutbox</a></li>
+      </ul>
+    </div>
+    <div class="nav-section">
+      <h2>Clan</h2>
+      <ul>
+        <li><a href="{url:members_teams}">// Squads</a></li>
+        <li><a href="{url:members_list}">// Members</a></li>
+        <li><a href="{url:wars}">// Clanwars</a></li>
+        <li><a href="{url:awards}">// Awards</a></li>
+        <li><a href="{url:history}">// History</a></li>
+        <li><a href="{url:rules}">// Rules</a></li>
+      </ul>
+    </div>
+    <div class="nav-section">
+      <h2>Media</h2>
+      <ul>
+        <li><a href="{url:files}">// Downloads</a></li>
+        <li><a href="{url:replays}">// Replays</a></li>
+        <li><a href="{url:servers}">// Servers</a></li>
+        <li><a href="{url:articles}">// Articles</a></li>
+        <li><a href="{url:links}">// Links</a></li>
+      </ul>
+    </div>
+  </aside>
+
+  <main class="main-content">
+    {func:show}
+  </main>
+
+  <aside class="sidebar-right">
+    <div class="widget">
+      <h2>Stats</h2>
+      <ul>
+        <li><a href="{url:count_online}">{count:navone} Online</a></li>
+        <li>{count:navday} Heute</li>
+        <li>{count:navusr} Members</li>
+      </ul>
+    </div>
+    <div class="widget">
+      <h2>Latest</h2>
+      <ul>
+        <li>{news:navlist}</li>
+        <li>{board:navlist}</li>
+        <li>{wars:navlast}</li>
+      </ul>
+    </div>
+    <div class="widget">
+      <h2>Contact</h2>
+      <ul>
+        <li><a href="{url:joinus_new}">// Joinus</a></li>
+        <li><a href="{url:fightus_new}">// Fightus</a></li>
+        <li><a href="{url:contact_mail}">// Mailus</a></li>
+        <li><a href="{url:contact_imprint}">// Imprint</a></li>
+      </ul>
+    </div>
+  </aside>
+
+  <footer class="site-footer">
+    <span>ClanSphere {clansphere:version} &mdash; Cyberpunk Edition</span>
+    <span>{func:parse} ms &middot; {func:queries} queries</span>
+  </footer>
+</div>
+
+</body>
+</html>

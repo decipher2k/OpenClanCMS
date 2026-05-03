@@ -81,9 +81,16 @@ if(empty($op_users['register'])) {
     $errormsg .= sprintf($cs_lang['flood_on'], $diff) . cs_html_br(1);
   }
 
-  if(!cs_captchacheck($_POST['captcha'])) {
+  if(empty($hcaptcha_opts['hcaptcha_sitekey'])) {
+    if(!cs_captchacheck($_POST['captcha'])) {
         $error++;
         $errormsg .= $cs_lang['captcha_false'] . cs_html_br(1);
+    }
+  } else {
+    if(empty($_POST['h-captcha-response']) OR !cs_hcaptcha_verify($_POST['h-captcha-response'])) {
+        $error++;
+        $errormsg .= $cs_lang['captcha_false'] . cs_html_br(1);
+    }
   }
 
     isset($_POST['send_mail']) ? $rgsm = $_POST['send_mail'] : $rgsm = 0;
@@ -129,10 +136,20 @@ if(empty($op_users['register'])) {
 
   $data['if']['captcha'] = 0;
 
-  if(!empty($captcha)) {
+  $data['if']['captcha'] = 0;
+  $data['if']['hcaptcha'] = 0;
+
+  $hcaptcha_opts = cs_sql_option(__FILE__, 'clansphere');
+  if(!empty($hcaptcha_opts['hcaptcha_sitekey'])) {
+    $data['if']['hcaptcha'] = 1;
+    $data['hcaptcha']['widget'] = cs_hcaptcha_widget();
+    $data['if']['captcha'] = 0;
+  } else {
+    if(!empty($captcha)) {
       $data['if']['captcha'] = 1;
       $data['captcha']['img'] = cs_html_img('mods/captcha/generate.php?time=' . cs_time());
     }
+  }
   if(empty($op_users['def_register']) OR $op_users['def_register'] == '2') {
     if($op_users['def_register'] != '2') {
       $data['if']['reg_mail'] = 1;

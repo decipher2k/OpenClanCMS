@@ -61,6 +61,38 @@ function cs_hash_equals($known, $given) {
   return $result === 0;
 }
 
+function cs_hcaptcha_verify($token) {
+
+  $options = cs_sql_option(__FILE__, 'clansphere');
+  if(empty($options['hcaptcha_secret']) OR empty($token))
+    return false;
+
+  $data = array('secret' => $options['hcaptcha_secret'], 'response' => $token);
+  $ctx = stream_context_create(array('http' => array(
+    'method' => 'POST',
+    'header' => "Content-Type: application/x-www-form-urlencoded\r\n",
+    'content' => http_build_query($data),
+    'timeout' => 10
+  )));
+
+  $result = @file_get_contents('https://hcaptcha.com/siteverify', false, $ctx);
+  if(empty($result))
+    return false;
+
+  $response = json_decode($result, true);
+  return !empty($response['success']);
+}
+
+function cs_hcaptcha_widget() {
+
+  $options = cs_sql_option(__FILE__, 'clansphere');
+  if(empty($options['hcaptcha_sitekey']))
+    return '';
+
+  return '<div class="h-captcha" data-sitekey="' . cs_html_attr($options['hcaptcha_sitekey']) . '"></div>'
+       . '<script src="https://js.hcaptcha.com/1/api.js" async defer></script>';
+}
+
 function cs_random_string($length = 32) {
 
   $length = (int) $length;

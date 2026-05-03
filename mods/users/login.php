@@ -48,6 +48,15 @@ if(empty($login['mode'])) {
   $data['lang']['reset'] = $cs_lang['reset'];
 
   echo cs_html_br(0);
+  $data['if']['hcaptcha'] = false;
+  $hcaptcha_opts = cs_sql_option(__FILE__, 'clansphere');
+  if(!empty($hcaptcha_opts['hcaptcha_sitekey'])) {
+    $attempts = isset($_SESSION['login_attempts']) ? $_SESSION['login_attempts']['count'] : 0;
+    if($attempts >= 3) {
+      $data['if']['hcaptcha'] = true;
+      $data['hcaptcha']['widget'] = cs_hcaptcha_widget();
+    }
+  }
   echo cs_subtemplate(__FILE__,$data,'users','head');
   echo cs_subtemplate(__FILE__,$data,'users','login');
 }

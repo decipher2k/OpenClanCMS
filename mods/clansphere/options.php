@@ -49,6 +49,8 @@ if(isset($_POST['submit'])) {
   $save['notfound_info'] = (int) $_POST['notfound_info'];
   $save['data_limit'] = (int) $_POST['data_limit'];
   $save['sec_remote'] = (int) $_POST['sec_remote'];
+  $save['hcaptcha_sitekey'] = trim($_POST['hcaptcha_sitekey']);
+  $save['hcaptcha_secret'] = trim($_POST['hcaptcha_secret']);
 
   require_once 'mods/clansphere/func_options.php';
 
@@ -153,6 +155,9 @@ else {
   $data['options']['main_acc3_checked'] = $data['options']['maintenance_access'] == 3 ? 'selected="selected"' : '';
   $data['options']['main_acc4_checked'] = $data['options']['maintenance_access'] == 4 ? 'selected="selected"' : '';
   $data['options']['main_acc5_checked'] = $data['options']['maintenance_access'] == 5 ? 'selected="selected"' : '';
+
+  $data['options']['hcaptcha_sitekey'] = cs_secure(empty($data['options']['hcaptcha_sitekey']) ? '' : $data['options']['hcaptcha_sitekey']);
+  $data['options']['hcaptcha_secret'] = empty($data['options']['hcaptcha_secret']) ? '' : $data['options']['hcaptcha_secret'];
 
   echo cs_subtemplate(__FILE__,$data,'clansphere','options');
 }

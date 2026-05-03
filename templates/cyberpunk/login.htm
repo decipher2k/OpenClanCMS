@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login :: ClanSphere</title>
+  <style>
+    :root {
+      --bg: #0a0a0b; --bg2: #111114; --bg3: #1a1a1f;
+      --green: #00cc3a; --green-dim: #006622;
+      --amber: #b8942e; --text: #c0c0c0; --text-dim: #707070; --border: #222228;
+      --font: 'Segoe UI', system-ui, sans-serif;
+      --mono: 'Fira Code', 'Consolas', monospace;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: var(--font); background: var(--bg); color: var(--text); display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+    .login-box { background: var(--bg2); border: 1px solid var(--border); padding: 2.5rem; width: 380px; max-width: 95vw; border-radius: 4px; box-shadow: 0 0 30px rgba(0,204,58,0.05); }
+    .login-box h1 { font-family: var(--mono); font-size: 1.3rem; color: var(--green); margin-bottom: 0.3rem; font-weight: 400; letter-spacing: 0.06em; }
+    .login-box h2 { font-size: 0.7rem; color: var(--amber); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 1.5rem; font-weight: 400; }
+    input[type=text], input[type=password], input[type=email] {
+      width: 100%; background: var(--bg); border: 1px solid var(--border); color: var(--text);
+      padding: 0.7rem; font-family: var(--font); font-size: 0.9rem; margin-bottom: 0.8rem; border-radius: 2px;
+    }
+    input:focus { outline: none; border-color: var(--green); box-shadow: 0 0 6px rgba(0,204,58,0.15); }
+    input[type=submit] { width: 100%; background: var(--green-dim); color: var(--green); border: 1px solid var(--green); padding: 0.7rem; cursor: pointer; font-family: var(--mono); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.1em; border-radius: 2px; }
+    input[type=submit]:hover { background: var(--green); color: #000; }
+    .links { margin-top: 1rem; font-size: 0.75rem; text-align: center; }
+    .links a { color: var(--text-dim); text-decoration: none; }
+    .links a:hover { color: var(--green); }
+    .footer { margin-top: 2rem; text-align: center; font-size: 0.65rem; color: var(--text-dim); font-family: var(--mono); }
+  </style>
+</head>
+<body>
+  <div>
+    <div class="login-box">
+      <h1>&gt; CLANSPHERE_</h1>
+      <h2>Maintenance Mode</h2>
+      {func:show}
+    </div>
+    <div class="footer">{func:queries} queries &middot; {func:parse} ms</div>
+  </div>
+</body>
+</html>
