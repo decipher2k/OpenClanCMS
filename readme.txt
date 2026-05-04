@@ -10,6 +10,7 @@ Changelog:
 -Migrated to PHP 8.x
 -Cookie banner
 -Legal texts pages (empty)
+-New default template and theme ("cyberpunk")
 
 The patch for clansphere_2011.4.4-r2 can be found in complete-security-audit.patch
 
