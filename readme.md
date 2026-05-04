@@ -1,7 +1,7 @@
 <h2>OpenClanCMS</h2>
 <b>OpenClanCMS is a fork of ClanSphere.</b><br> Sadly it seems to be impossible to contact the original devs, and ClanSphere seems to be abandoned.<br>
 <br>
-Changelog:<br>
+<b>Changelog:</b><br>
 -Fixed several dozen security flaws<br>
   -SQL prepared statements<br>
   -CSRF tokens<br>
