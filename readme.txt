@@ -8,6 +8,8 @@ Changelog:
   -Added hCaptcha support
   -[...]
 -Migrated to PHP 8.x
+-Cookie banner
+-Legal texts pages (empty)
 
 The patch for clansphere_2011.4.4-r2 can be found in complete-security-audit.patch
 
