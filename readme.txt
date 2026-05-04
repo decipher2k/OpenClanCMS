@@ -5,6 +5,7 @@ Changelog:
   -SQL prepared statements
   -CSRF tokens
   -Password hashing using salted Argon2id
+  -Added hCaptcha support
   -[...]
 -Migrated to PHP 8.x
 
