@@ -771,6 +771,12 @@ INSERT INTO {pre}_options (options_mod, options_name, options_value) VALUES ('cl
 INSERT INTO {pre}_options (options_mod, options_name, options_value) VALUES ('clansphere', 'version_name', '2026.1.1');
 INSERT INTO {pre}_options (options_mod, options_name, options_value) VALUES ('clansphere', 'version_date', '2014-04-21');
 INSERT INTO {pre}_options (options_mod, options_name, options_value) VALUES ('clansphere', 'version_id', '96');
+
+INSERT INTO {pre}_options (options_mod, options_name, options_value) VALUES ('clansphere', 'hcaptcha_sitekey', '');
+
+INSERT INTO {pre}_options (options_mod, options_name, options_value) VALUES ('clansphere', 'hcaptcha_secret', '');
+
+INSERT INTO {pre}_options (options_mod, options_name, options_value) VALUES ('clansphere', 'cookie_banner', '1');
 INSERT INTO {pre}_options (options_mod, options_name, options_value) VALUES ('comments', 'allow_unreg', '0');
 INSERT INTO {pre}_options (options_mod, options_name, options_value) VALUES ('comments', 'show_avatar', '0');
 INSERT INTO {pre}_options (options_mod, options_name, options_value) VALUES ('computers', 'max_width', '800');
@@ -1036,6 +1042,12 @@ CREATE TABLE {pre}_static (
     static_access INT(2) NOT NULL default '0',
     PRIMARY KEY (static_id)
 ) {engine};
+
+INSERT INTO {pre}_static (static_title, static_text, static_table, static_comments, static_admins, static_access)
+VALUES ('Datenschutzerklaerung', '', 0, 0, 1, 0);
+
+INSERT INTO {pre}_static (static_title, static_text, static_table, static_comments, static_admins, static_access)
+VALUES ('Barrierefreiheitserklaerung', '', 0, 0, 1, 0);
 
 CREATE TABLE {pre}_servers (
   servers_id {serial},

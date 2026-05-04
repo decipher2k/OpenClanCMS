@@ -180,6 +180,11 @@ function cs_abcode_img($matches) {
   }
 }
 
+function cs_abcode_urlimg ($matches) {
+
+  return '[url='.$matches[1].']'.cs_html_img($matches[4],$matches[3],$matches[2]).'[/url]';
+}
+
 function cs_abcode_mail($matches) {
 
   if (strpos($matches[0],'</a>') !== false)
@@ -265,6 +270,7 @@ $htmlcode = array();
 function cs_abcode_html($matches) {
 
   global $cs_main, $htmlcode;
+  if(!is_array($htmlcode)) $htmlcode = array();
   $nr = count($htmlcode);
   $htmlcode[] = html_entity_decode($matches[1], ENT_QUOTES, $cs_main['charset']);
   return '{html' . $nr . '}';
